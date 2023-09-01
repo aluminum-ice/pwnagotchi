@@ -467,6 +467,43 @@
       src: /usr/local/src/nexmon/patches/bcm43430a1/7_45_41_46/nexmon/brcmfmac43430-sdio.bin
       dest: /lib/firmware/brcm/brcmfmac43430-sdio.bin
 
+  - name: choose the right kernel version (bcm43430a1)
+    replace:
+      dest: /usr/local/src/nexmon/patches/bcm43430a1/7_45_41_46/nexmon/Makefile
+      backup: no
+      regexp: "KERNEL_VERSION = .*$"
+      replace: "KERNEL_VERSION = 5.10"
+
+  - name: choose the right kernel release (variable) (bcm43430a1)
+    lineinfile:
+      dest: /usr/local/src/nexmon/patches/bcm43430a1/7_45_41_46/nexmon/Makefile
+      insertafter: "DRIVER_FOLDER_NAME = .*$"
+      line: "KERNEL_RELEASE = 5.10.103+"
+
+  - name: choose the right kernel release (replace string) (bcm43430a1)
+    replace:
+      dest: /usr/local/src/nexmon/patches/bcm43430a1/7_45_41_46/nexmon/Makefile
+      backup: no
+      regexp: "shell uname -r"
+      replace: "KERNEL_RELEASE"
+
+  - name: make firmware patch (bcm43430a1)
+    shell: "source ./setup_env.sh && cd /usr/local/src/nexmon/patches/bcm43430a1/7_45_41_46/nexmon/ && make"
+    args:
+      executable: /bin/bash
+      chdir: /usr/local/src/nexmon/
+
+  - name: install new firmware (bcm43430a1)
+    copy:
+      src: /usr/local/src/nexmon/patches/bcm43430a1/7_45_41_46/nexmon/brcmfmac43430-sdio.bin
+      dest: /lib/firmware/brcm/brcmfmac43430-sdio.bin
+
+  - name: copy modified driver (RPiZW)
+    copy:
+      src: /usr/local/src/nexmon/patches/driver/brcmfmac_5.10.y-nexmon/brcmfmac.ko
+      dest: /lib/modules/5.10.103+/kernel/drivers/net/wireless/broadcom/brcm80211/brcmfmac/brcmfmac.ko
+
+
   - name: Delete the firmware blob to avoid it crashing
     file:
       state: absent
@@ -541,10 +578,10 @@
       src: /usr/local/src/nexmon/patches/driver/brcmfmac_5.10.y-nexmon/brcmfmac.ko
       dest: /lib/modules/5.10.103-v7+/kernel/drivers/net/wireless/broadcom/brcm80211/brcmfmac/brcmfmac.ko
 
-  - name: copy modified driver (RPiZW)
-    copy:
-      src: /usr/local/src/nexmon/patches/driver/brcmfmac_5.10.y-nexmon/brcmfmac.ko
-      dest: /lib/modules/5.10.103+/kernel/drivers/net/wireless/broadcom/brcm80211/brcmfmac/brcmfmac.ko
+#  - name: copy modified driver (RPiZW)
+#    copy:
+#      src: /usr/local/src/nexmon/patches/driver/brcmfmac_5.10.y-nexmon/brcmfmac.ko
+#      dest: /lib/modules/5.10.103+/kernel/drivers/net/wireless/broadcom/brcm80211/brcmfmac/brcmfmac.ko
 
   - name: ensure depmod runs on reboot to load modified driver (brcmfmac)
     lineinfile:
