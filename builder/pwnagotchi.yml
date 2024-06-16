@@ -380,7 +380,7 @@
     when: golang.changed
 
   - name: Install bettercap (from source)
-    shell: "export GOPATH=$HOME/go && export PATH=/usr/local/go/bin:$PATH:$GOPATH/bin && go env -w GO111MODULE=off && go get github.com/bettercap/bettercap && cd $GOPATH/src/github.com/bettercap/bettercap && make build && make install"
+    shell: "export GOPATH=$HOME/go && export GO111MODULE="on" && export PATH=/usr/local/go/bin:$PATH:$GOPATH/bin && go env -w GO111MODULE=off && go get github.com/bettercap/bettercap && cd $GOPATH/src/github.com/bettercap/bettercap && make build && make install"
     args:
       executable: /bin/bash
     register: bettercap
