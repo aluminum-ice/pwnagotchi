@@ -1,6 +1,12 @@
-"""Phase 1 negative-space regression tests (design.md Section 3.7).
+"""Phase 1 negative-space regression tests.
 
-These assert that the pwngrid / peer-advertising surface stays removed.
+The first six are the assertions specified in design.md Section 3.7.
+The final two guard the Phase 1 follow-up fix in which the WiFi channel
+math was relocated out of the wholesale-deleted ``pwnagotchi/mesh/``
+package (the original deletion left five core modules importing the
+now-absent ``pwnagotchi.mesh`` and the daemon would not boot).
+
+All assert that the pwngrid / peer-advertising surface stays removed.
 Written with the stdlib ``unittest`` only -- pytest is not installed until
 Phase 2 -- and absorbed into the pytest suite later. Fast: no real I/O,
 no mocking framework.
@@ -119,6 +125,36 @@ class Phase1RemovalTests(unittest.TestCase):
 
         self.fail("pwnagotchi.agent failed to import for an unexpected "
                   "reason:\n" + err)
+
+    # --- Phase 1 follow-up fix: mesh/wifi.py relocation ---------------------
+
+    def test_wifi_module_relocated(self):
+        # mesh/wifi.py was pure channel math, not peer-advertising; it now
+        # lives at pwnagotchi/wifi.py. It must import with no dependency on
+        # the deleted mesh package and keep its constants/behaviour.
+        import pwnagotchi.wifi as wifi
+        self.assertIsInstance(wifi.NumChannels, int)
+        self.assertIsInstance(wifi.NumChannelsExt, int)
+        # 2437 MHz is 802.11 channel 6 -- cheap behavioural sanity check.
+        self.assertEqual(wifi.freq_to_channel(2437), 6)
+
+    def test_no_dangling_pwnagotchi_mesh_imports(self):
+        # Regression guard for the boot defect: nothing under pwnagotchi/
+        # or bin/ may reference the deleted pwnagotchi.mesh package. (This
+        # test file legitimately names it, but lives under tests/ and is
+        # not scanned.)
+        targets = glob.glob(os.path.join(PWN_ROOT, 'pwnagotchi', '**', '*.py'),
+                            recursive=True)
+        targets.append(os.path.join(PWN_ROOT, 'bin', 'pwnagotchi'))
+        offending = []
+        for p in targets:
+            with open(p, encoding='utf-8') as fh:
+                if 'pwnagotchi.mesh' in fh.read():
+                    offending.append(os.path.relpath(p, PWN_ROOT))
+        self.assertEqual(
+            sorted(offending), [],
+            "pwnagotchi.mesh (deleted) is still referenced in: %s"
+            % sorted(offending))
 
 
 if __name__ == '__main__':
