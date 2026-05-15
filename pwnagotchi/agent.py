@@ -19,7 +19,7 @@ from pwnagotchi.ai.train import AsyncTrainer
 RECOVERY_DATA_FILE = '/root/.pwnagotchi-recovery'
 
 
-class Agent(Client, Automata, AsyncAdvertiser, AsyncTrainer):
+class Agent(Client, Automata, AsyncTrainer):
     def __init__(self, view, config, keypair):
         Client.__init__(self, config['bettercap']['hostname'],
                         config['bettercap']['scheme'],
@@ -172,7 +172,7 @@ class Agent(Client, Automata, AsyncAdvertiser, AsyncTrainer):
     def set_access_points(self, aps):
         self._access_points = aps
         plugins.on('wifi_update', self, aps)
-        self._epoch.observe(aps, list(self._peers.values()))
+        self._epoch.observe(aps, [])
         return self._access_points
 
     def get_access_points(self):
@@ -267,9 +267,6 @@ class Agent(Client, Automata, AsyncAdvertiser, AsyncTrainer):
         if new_shakes > 0:
             self._view.on_handshakes(new_shakes)
 
-    def _update_peers(self):
-        self._view.set_closest_peer(self._closest_peer, len(self._peers))
-
     def _reboot(self):
         self.set_rebooting()
         self._save_recovery_data()
@@ -315,7 +312,6 @@ class Agent(Client, Automata, AsyncAdvertiser, AsyncTrainer):
             s = self.session()
             self._update_uptime(s)
             self._update_advertisement(s)
-            self._update_peers()
             self._update_counters()
             self._update_handshakes(0)
             time.sleep(1)
