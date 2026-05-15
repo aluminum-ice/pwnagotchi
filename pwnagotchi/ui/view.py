@@ -339,12 +339,6 @@ class View(object):
         self.set('status', self._voice.on_handshakes(new_shakes))
         self.update()
 
-    def on_unread_messages(self, count, total):
-        self.set('face', faces.EXCITED)
-        self.set('status', self._voice.on_unread_messages(count, total))
-        self.update()
-        time.sleep(5.0)
-
     def on_uploading(self, to):
         self.set('face', random.choice((faces.UPLOAD, faces.UPLOAD1, faces.UPLOAD2)))
         self.set('status', self._voice.on_uploading(to))
