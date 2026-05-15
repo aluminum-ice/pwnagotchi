@@ -78,19 +78,47 @@ runtime/Flask modernisation so regressions are easy to bisect.
   for pwngrid RSA/SHA256 identity signing) is commented out with an
   explanatory note. It is not deleted because the pip-compile re-run is
   deferred to Phase 2.
+- `LastSession` (`pwnagotchi/log.py`): the dead peer summary — the `Peer`
+  import (from the deleted `mesh/peer.py`), `PEER_TOKEN`, the `_peer_parser`
+  regex, the `self.peers` / `self.last_peer` state, and the `PEER_TOKEN`
+  log-line parsing branch. `last_peer` had no remaining consumer and `peers`
+  fed only the manual-mode "Met N peers" status line, removed from
+  `pwnagotchi/voice.py` (`on_last_session_data`).
 
 ### Added
 
-- `tests/test_phase1_removal.py`: six negative-space regression tests
-  (design.md Section 3.7), stdlib `unittest` only — pytest is introduced in
-  Phase 2. They assert `pwnagotchi.grid` / `pwnagotchi.identity` /
-  `pwnagotchi.mesh` are not importable, that importing `pwnagotchi` does not
-  pull in `Crypto`, that no plugin registers `on_peer_detected`, and that
-  `pwnagotchi.agent` carries no reference to a removed component. In a
+- `pwnagotchi/wifi.py`: the WiFi channel math (`NumChannels`,
+  `NumChannelsExt`, `freq_to_channel`) relocated verbatim out of the
+  wholesale-deleted `pwnagotchi/mesh/` package. This code was never
+  peer-advertising; it merely lived in `mesh/`. See **Fixed** below.
+- `tests/test_phase1_removal.py`: eight stdlib-`unittest` negative-space
+  regression tests (pytest is introduced in Phase 2). Six are the
+  assertions from design.md Section 3.7 — `pwnagotchi.grid` /
+  `pwnagotchi.identity` / `pwnagotchi.mesh` not importable, `import
+  pwnagotchi` does not pull in `Crypto`, no plugin registers
+  `on_peer_detected`, and `pwnagotchi.agent` carries no reference to a
+  removed component. Two additional guards cover the mesh-relocation fix:
+  `pwnagotchi.wifi` imports and keeps its constants/behaviour, and nothing
+  under `pwnagotchi/` or `bin/` still references `pwnagotchi.mesh`. In a
   developer/CI environment `test_agent_imports_cleanly` is skipped when a
   third-party dependency (e.g. `flask`, `tensorflow`) is absent — by design
   it still fails hard if the breakage names a removed component, and passes
   outright on the built Pi image.
+
+### Fixed
+
+- **Boot-blocking regression from the wholesale `pwnagotchi/mesh/`
+  deletion.** `mesh/` contained more than peer-advertising: `mesh/wifi.py`
+  (channel math) and `mesh/peer.py` (`Peer`) had non-peer-advertising
+  consumers the design document's call-site list did not enumerate. Five
+  core modules (`utils.py`, `log.py`, `ai/epoch.py`, `ai/reward.py`,
+  `ai/featurizer.py`) still imported `pwnagotchi.mesh.*`, so the daemon
+  would have crashed on boot (`ModuleNotFoundError: pwnagotchi.mesh` via
+  `agent.py` → `log.py`). Fixed by relocating the channel math to
+  `pwnagotchi/wifi.py` (no logic change) and removing the genuinely-dead
+  `Peer`/`last_peer`/`peers` LastSession path. No `pwnagotchi.mesh`
+  reference remains anywhere except the negative test asserting it is
+  unimportable; `test_mesh_module_not_importable` still passes.
 
 ### Kept (explicitly)
 
@@ -117,9 +145,10 @@ runtime/Flask modernisation so regressions are easy to bisect.
   rewrites it to the tagged version (`PWN_VERSION` / `sed`), so it is not
   bumped by hand here.
 - `pwnagotchi/voice.py` retains now-orphaned `on_unread_messages`,
-  `on_new_peer`, `on_lost_peer` strings. Removing them touches the i18n
-  `.po`/`.pot` catalogues and `make langs`, so it is left for a dedicated
-  i18n step.
+  `on_new_peer`, `on_lost_peer` methods, and the `.po`/`.pot` catalogue
+  entries for the removed "Met 1 peer" / "Met {num} peers" strings are now
+  unused-but-harmless. Pruning these touches the i18n catalogues and
+  `make langs`, so it is left for a dedicated i18n step.
 - ~30 `pwnagotchi/ui/hw/*.py` layout modules still define `friend_face` /
   `friend_name` positions. These are now dead layout-dict entries (no longer
   read by `View`); a hardware-layout sweep is deferred.
