@@ -147,7 +147,3 @@ class Example(plugins.Plugin):
     # called when an epoch is over (where an epoch is a single loop of the main algorithm)
     def on_epoch(self, agent, epoch, epoch_data):
         pass
-
-    # called when a known peer is lost
-    def on_peer_lost(self, agent, peer):
-        pass
