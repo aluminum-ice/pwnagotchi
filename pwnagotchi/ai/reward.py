@@ -1,4 +1,4 @@
-import pwnagotchi.mesh.wifi as wifi
+import pwnagotchi.wifi as wifi
 
 range = (-.7, 1.02)
 fuck_zero = 1e-20
