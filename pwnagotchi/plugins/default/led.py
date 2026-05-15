@@ -150,10 +150,6 @@ class Led(plugins.Plugin):
     def on_epoch(self, agent, epoch, epoch_data):
         self._on_event('epoch')
 
-    # called when a new peer is detected
-    def on_peer_detected(self, agent, peer):
-        self._on_event('peer_detected')
-
     # called when a known peer is lost
     def on_peer_lost(self, agent, peer):
         self._on_event('peer_lost')

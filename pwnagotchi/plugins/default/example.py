@@ -148,10 +148,6 @@ class Example(plugins.Plugin):
     def on_epoch(self, agent, epoch, epoch_data):
         pass
 
-    # called when a new peer is detected
-    def on_peer_detected(self, agent, peer):
-        pass
-
     # called when a known peer is lost
     def on_peer_lost(self, agent, peer):
         pass
