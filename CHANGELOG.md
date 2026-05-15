@@ -26,11 +26,17 @@ runtime/Flask modernisation so regressions are easy to bisect.
 
 ### BREAKING — Plugin callback API
 
-- **`on_peer_detected` is removed from the plugin callback API.** Any
-  third-party plugin implementing `on_peer_detected` will still load without
-  error, but the callback will **never fire** — peer detection no longer
-  exists. In this fork the dispatch lived in the deleted
-  `pwnagotchi/mesh/utils.py` (`AsyncAdvertiser`), not in `automata.py`.
+- **`on_peer_detected` is removed from the plugin callback API.** This is
+  the breaking change specified by the design document. Any third-party
+  plugin implementing `on_peer_detected` will still load without error, but
+  the callback will **never fire** — peer detection no longer exists. In
+  this fork the dispatch lived in the deleted `pwnagotchi/mesh/utils.py`
+  (`AsyncAdvertiser`), not in `automata.py`.
+- **`on_peer_lost` is also removed.** The design document names only
+  `on_peer_detected`, but `on_peer_lost` was the equally-dead parallel
+  callback: its `peer_lost` dispatch lived in the same deleted
+  `mesh/utils.py`. It is removed for the same reason and has the same
+  effect — third-party plugins implementing it load fine but it never fires.
 
 ### Removed
 
@@ -51,11 +57,40 @@ runtime/Flask modernisation so regressions are easy to bisect.
 - Display (`ui/view.py`): removed `on_unread_messages`, `on_new_peer`,
   `on_lost_peer`, `set_closest_peer`, and the `friend_face` / `friend_name`
   state elements (the peer/inbox face and counter no longer render).
+- Default plugins: the now-dead `on_peer_detected` and `on_peer_lost`
+  callback methods were removed from `example.py` (the canonical template),
+  `led.py`, and `ntfy.py`, and the `'peer_detected'` / `'peer_lost'` entries
+  from `switcher.py`. Their dispatch was deleted with `mesh/utils.py`, so
+  these never fired. No module under `pwnagotchi/` now defines
+  `on_peer_detected` (design.md Appendix A item #7).
 - Ansible playbook (`builder/pwnagotchi.yml`): removed the combined pwngrid
   binary download + `/usr/bin/` install task, the `pwngrid-peer.service`
   entry from `services.enable`, and the orphaned `packages.pwngrid` variable.
   The design document's `pwngrid -generate -keys` keypair task does not
   exist in this fork's playbook.
+- `builder/data/etc/systemd/system/pwnagotchi.service`: removed the
+  `After=pwngrid-peer.service` ordering directive that referenced the
+  deleted unit. `builder/` is now free of any `pwngrid` reference
+  (design.md Appendix A item #10).
+- `pwnagotchi/defaults.toml`: removed the `main.plugins.grid` block
+  (`enabled`, `report`, `exclude`).
+- `requirements.in`: `pycryptodome` (used only by the deleted `identity.py`
+  for pwngrid RSA/SHA256 identity signing) is commented out with an
+  explanatory note. It is not deleted because the pip-compile re-run is
+  deferred to Phase 2.
+
+### Added
+
+- `tests/test_phase1_removal.py`: six negative-space regression tests
+  (design.md Section 3.7), stdlib `unittest` only — pytest is introduced in
+  Phase 2. They assert `pwnagotchi.grid` / `pwnagotchi.identity` /
+  `pwnagotchi.mesh` are not importable, that importing `pwnagotchi` does not
+  pull in `Crypto`, that no plugin registers `on_peer_detected`, and that
+  `pwnagotchi.agent` carries no reference to a removed component. In a
+  developer/CI environment `test_agent_imports_cleanly` is skipped when a
+  third-party dependency (e.g. `flask`, `tensorflow`) is absent — by design
+  it still fails hard if the breakage names a removed component, and passes
+  outright on the built Pi image.
 
 ### Kept (explicitly)
 
@@ -76,20 +111,19 @@ runtime/Flask modernisation so regressions are easy to bisect.
   full removal of the grateful concept was intentionally deferred (out of
   Phase 1 scope).
 
-### Known follow-ups (still within Phase 1, not yet done)
+### Known follow-ups
 
-- `pwnagotchi/_version.py` is still `1.8.4`; the release workflow rewrites
-  it to the tagged version.
-- `requirements.in`: `pycryptodome` (used only by the deleted `identity.py`)
-  not yet commented out; pip-compile is deferred to Phase 2.
-- `pwnagotchi/defaults.toml`: the `[main.plugins.grid]` block not yet removed.
-- `builder/data/etc/systemd/system/pwnagotchi.service` still has
-  `After=pwngrid-peer.service`, referencing the deleted unit.
+- `pwnagotchi/_version.py` is still `1.8.4`; the GitHub release workflow
+  rewrites it to the tagged version (`PWN_VERSION` / `sed`), so it is not
+  bumped by hand here.
 - `pwnagotchi/voice.py` retains now-orphaned `on_unread_messages`,
-  `on_new_peer`, `on_lost_peer` strings (removal touches i18n `.po`/`.pot`
-  and `make langs` — to be handled as a dedicated step).
+  `on_new_peer`, `on_lost_peer` strings. Removing them touches the i18n
+  `.po`/`.pot` catalogues and `make langs`, so it is left for a dedicated
+  i18n step.
 - ~30 `pwnagotchi/ui/hw/*.py` layout modules still define `friend_face` /
-  `friend_name` positions; these are now dead layout-dict entries (no longer
-  read by `View`).
-- `tests/test_phase1_removal.py` (six negative-space assertions) not yet
-  written.
+  `friend_name` positions. These are now dead layout-dict entries (no longer
+  read by `View`); a hardware-layout sweep is deferred.
+- On-Pi runtime acceptance (design.md Appendix A items #14–#16 — image
+  boots with no pwngrid/grid/identity errors, display renders without the
+  inbox/peer element, bettercap handshake capture works in AUTO) can only
+  be verified by booting a built image on a Raspberry Pi, not in CI.
