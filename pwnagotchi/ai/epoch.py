@@ -4,7 +4,7 @@ import logging
 
 import pwnagotchi
 import pwnagotchi.utils as utils
-import pwnagotchi.mesh.wifi as wifi
+import pwnagotchi.wifi as wifi
 
 from pwnagotchi.ai.reward import RewardFunction
 

@@ -13,21 +13,19 @@ from pwnagotchi.ui.web.server import Server
 from pwnagotchi.automata import Automata
 from pwnagotchi.log import LastSession
 from pwnagotchi.bettercap import Client
-from pwnagotchi.mesh.utils import AsyncAdvertiser
 from pwnagotchi.ai.train import AsyncTrainer
 
 RECOVERY_DATA_FILE = '/root/.pwnagotchi-recovery'
 
 
-class Agent(Client, Automata, AsyncAdvertiser, AsyncTrainer):
-    def __init__(self, view, config, keypair):
+class Agent(Client, Automata, AsyncTrainer):
+    def __init__(self, view, config):
         Client.__init__(self, config['bettercap']['hostname'],
                         config['bettercap']['scheme'],
                         config['bettercap']['port'],
                         config['bettercap']['username'],
                         config['bettercap']['password'])
         Automata.__init__(self, config, view)
-        AsyncAdvertiser.__init__(self, config, view, keypair)
         AsyncTrainer.__init__(self, config)
 
         self._started_at = time.time()
@@ -50,7 +48,7 @@ class Agent(Client, Automata, AsyncAdvertiser, AsyncTrainer):
         if not os.path.exists(config['bettercap']['handshakes']):
             os.makedirs(config['bettercap']['handshakes'])
 
-        logging.info("%s@%s (v%s)", pwnagotchi.name(), self.fingerprint(), pwnagotchi.__version__)
+        logging.info("%s (v%s)", pwnagotchi.name(), pwnagotchi.__version__)
         for _, plugin in plugins.loaded.items():
             logging.debug("plugin '%s' v%s", plugin.__class__.__name__, plugin.__version__)
 
@@ -117,8 +115,6 @@ class Agent(Client, Automata, AsyncAdvertiser, AsyncTrainer):
             logging.debug("starting wifi module ...")
             self.start_module('wifi.recon')
 
-        self.start_advertising()
-
     def _wait_bettercap(self):
         while True:
             try:
@@ -172,7 +168,7 @@ class Agent(Client, Automata, AsyncAdvertiser, AsyncTrainer):
     def set_access_points(self, aps):
         self._access_points = aps
         plugins.on('wifi_update', self, aps)
-        self._epoch.observe(aps, list(self._peers.values()))
+        self._epoch.observe(aps, [])
         return self._access_points
 
     def get_access_points(self):
@@ -267,9 +263,6 @@ class Agent(Client, Automata, AsyncAdvertiser, AsyncTrainer):
         if new_shakes > 0:
             self._view.on_handshakes(new_shakes)
 
-    def _update_peers(self):
-        self._view.set_closest_peer(self._closest_peer, len(self._peers))
-
     def _reboot(self):
         self.set_rebooting()
         self._save_recovery_data()
@@ -314,8 +307,6 @@ class Agent(Client, Automata, AsyncAdvertiser, AsyncTrainer):
         while True:
             s = self.session()
             self._update_uptime(s)
-            self._update_advertisement(s)
-            self._update_peers()
             self._update_counters()
             self._update_handshakes(0)
             time.sleep(1)

@@ -149,11 +149,3 @@ class Led(plugins.Plugin):
     # called when an epoch is over (where an epoch is a single loop of the main algorithm)
     def on_epoch(self, agent, epoch, epoch_data):
         self._on_event('epoch')
-
-    # called when a new peer is detected
-    def on_peer_detected(self, agent, peer):
-        self._on_event('peer_detected')
-
-    # called when a known peer is lost
-    def on_peer_lost(self, agent, peer):
-        self._on_event('peer_lost')
