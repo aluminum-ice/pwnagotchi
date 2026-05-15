@@ -59,8 +59,7 @@ class Handler:
     def index(self):
         return render_template('index.html',
                                title=pwnagotchi.name(),
-                               other_mode='AUTO' if self._agent.mode == 'manual' else 'MANU',
-                               fingerprint=self._agent.fingerprint())
+                               other_mode='AUTO' if self._agent.mode == 'manual' else 'MANU')
 
     def plugins(self, name, subpath):
         if name is None:

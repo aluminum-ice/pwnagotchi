@@ -39,8 +39,6 @@ def do_manual_mode(agent):
     while True:
         display.on_manual_mode(agent.last_session)
         time.sleep(5)
-        if grid.is_connected():
-            plugins.on('internet_available', agent)
 
 
 def do_auto_mode(agent):
@@ -78,9 +76,6 @@ def do_auto_mode(agent):
             # WiFi electromagnetic fields affect time like gravitational fields
             # affect ours ... neat ^_^
             agent.next_epoch()
-
-            if grid.is_connected():
-                plugins.on('internet_available', agent)
 
         except Exception as e:
             if str(e).find("wifi.interface not set") > 0:
@@ -135,11 +130,9 @@ if __name__ == '__main__':
         print(toml.dumps(config, encoder=DottedTomlEncoder()))
         sys.exit(0)
 
-    from pwnagotchi.identity import KeyPair
     from pwnagotchi.agent import Agent
     from pwnagotchi.ui import fonts
     from pwnagotchi.ui.display import Display
-    from pwnagotchi import grid
     from pwnagotchi import plugins
 
     pwnagotchi.config = config
@@ -157,7 +150,7 @@ if __name__ == '__main__':
         do_clear(display)
         sys.exit(0)
 
-    agent = Agent(view=display, config=config, keypair=KeyPair(view=display))
+    agent = Agent(view=display, config=config)
 
     def usr1_handler(*unused):
         logging.info('Received USR1 singal. Restart process ...')

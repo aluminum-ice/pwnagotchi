@@ -13,21 +13,19 @@ from pwnagotchi.ui.web.server import Server
 from pwnagotchi.automata import Automata
 from pwnagotchi.log import LastSession
 from pwnagotchi.bettercap import Client
-from pwnagotchi.mesh.utils import AsyncAdvertiser
 from pwnagotchi.ai.train import AsyncTrainer
 
 RECOVERY_DATA_FILE = '/root/.pwnagotchi-recovery'
 
 
 class Agent(Client, Automata, AsyncTrainer):
-    def __init__(self, view, config, keypair):
+    def __init__(self, view, config):
         Client.__init__(self, config['bettercap']['hostname'],
                         config['bettercap']['scheme'],
                         config['bettercap']['port'],
                         config['bettercap']['username'],
                         config['bettercap']['password'])
         Automata.__init__(self, config, view)
-        AsyncAdvertiser.__init__(self, config, view, keypair)
         AsyncTrainer.__init__(self, config)
 
         self._started_at = time.time()
@@ -50,7 +48,7 @@ class Agent(Client, Automata, AsyncTrainer):
         if not os.path.exists(config['bettercap']['handshakes']):
             os.makedirs(config['bettercap']['handshakes'])
 
-        logging.info("%s@%s (v%s)", pwnagotchi.name(), self.fingerprint(), pwnagotchi.__version__)
+        logging.info("%s (v%s)", pwnagotchi.name(), pwnagotchi.__version__)
         for _, plugin in plugins.loaded.items():
             logging.debug("plugin '%s' v%s", plugin.__class__.__name__, plugin.__version__)
 
@@ -116,8 +114,6 @@ class Agent(Client, Automata, AsyncTrainer):
         elif not wifi_running:
             logging.debug("starting wifi module ...")
             self.start_module('wifi.recon')
-
-        self.start_advertising()
 
     def _wait_bettercap(self):
         while True:
@@ -311,7 +307,6 @@ class Agent(Client, Automata, AsyncTrainer):
         while True:
             s = self.session()
             self._update_uptime(s)
-            self._update_advertisement(s)
             self._update_counters()
             self._update_handshakes(0)
             time.sleep(1)
