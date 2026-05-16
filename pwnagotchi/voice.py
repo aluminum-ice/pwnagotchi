@@ -82,21 +82,6 @@ class Voice:
             self._('I\'m having so much fun!'),
             self._('My crime is that of curiosity ...')])
 
-    def on_new_peer(self, peer):
-        if peer.first_encounter():
-            return random.choice([
-                self._('Hello {name}! Nice to meet you.').format(name=peer.name())])
-        else:
-            return random.choice([
-                self._('Yo {name}! Sup?').format(name=peer.name()),
-                self._('Hey {name} how are you doing?').format(name=peer.name()),
-                self._('Unit {name} is nearby!').format(name=peer.name())])
-
-    def on_lost_peer(self, peer):
-        return random.choice([
-            self._('Uhm ... goodbye {name}').format(name=peer.name()),
-            self._('{name} is gone ...').format(name=peer.name())])
-
     def on_miss(self, who):
         return random.choice([
             self._('Whoops ... {name} is gone.').format(name=who),
@@ -151,10 +136,6 @@ class Voice:
     def on_handshakes(self, new_shakes):
         s = 's' if new_shakes > 1 else ''
         return self._('Cool, we got {num} new handshake{plural}!').format(num=new_shakes, plural=s)
-
-    def on_unread_messages(self, count, total):
-        s = 's' if count > 1 else ''
-        return self._('You have {count} new message{plural}!').format(count=count, plural=s)
 
     def on_rebooting(self):
         return self._("Oops, something went wrong ... Rebooting ...")
