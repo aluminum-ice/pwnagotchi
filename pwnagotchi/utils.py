@@ -281,6 +281,9 @@ def load_config(args):
     elif config['ui']['display']['type'] in ('ws_213d', 'ws213d', 'waveshare_213d', 'waveshare213d'):
         config['ui']['display']['type'] = 'waveshare213d'
 
+    elif config['ui']['display']['type'] in ('ws_213g', 'ws213g', 'waveshare_213g', 'waveshare213g'):
+        config['ui']['display']['type'] = 'waveshare213g'
+
     elif config['ui']['display']['type'] in ('ws_213bc', 'ws213bc', 'waveshare_213bc', 'waveshare213bc'):
         config['ui']['display']['type'] = 'waveshare213bc'
 
@@ -433,7 +436,7 @@ def extract_from_pcap(path, fields):
                 raise FieldNotFoundError("Could not find field [ENCRYPTION]")
         elif field == WifiInfo.CHANNEL:
             from scapy.all import sniff, RadioTap
-            from pwnagotchi.mesh.wifi import freq_to_channel
+            from pwnagotchi.wifi import freq_to_channel
             packets = sniff(offline=path, count=1)
             try:
                 results[field] = freq_to_channel(packets[0][RadioTap].ChannelFrequency)
@@ -441,7 +444,7 @@ def extract_from_pcap(path, fields):
                 raise FieldNotFoundError("Could not find field [CHANNEL]")
         elif field == WifiInfo.RSSI:
             from scapy.all import sniff, RadioTap
-            from pwnagotchi.mesh.wifi import freq_to_channel
+            from pwnagotchi.wifi import freq_to_channel
             packets = sniff(offline=path, count=1)
             try:
                 results[field] = packets[0][RadioTap].dBm_AntSignal

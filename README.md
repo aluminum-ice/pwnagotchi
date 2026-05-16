@@ -10,11 +10,11 @@
 This is a fork of the [original pwnagotchi project](https://github.com/evilsocket/pwnagotchi). I have heavily updated my fork to enable pwnagotchi to run well on a Raspberry Pi Zero 2 W. Major changes include:
 
 1. **Remove all dependency on Kali-Pi** (causes more problems than it fixes) :boom: :boom:
-2. Update to [Old Stable Buster Lite 2023-05-03](https://downloads.raspberrypi.org/raspios_oldstable_lite_armhf/images/raspios_oldstable_lite_armhf-2023-05-03/)
+2. Update to [Old Stable Bullseye-32 Lite 2024-03-12](https://downloads.raspberrypi.org/raspios_oldstable_lite_armhf/images/raspios_oldstable_lite_armhf-2024-03-12/)
 3. Compile [nexmon from source](https://github.com/seemoo-lab/nexmon)
     * Raspberry Pi Zero 2W (RPiZ2W) supported via firmware patch bcm43436b0/9_88_4_65 (43430/2) and bcm43430a1/7_45_41_46 (43430/1)
     * Raspberry Pi 3B+ (RPi3B+) and Pi 4 (RPi4) supported via firmware patch bcm43455c0/7_45_206/
-4. Update to [Go v1.21.5](https://go.dev/dl/)
+4. Update to [Go v1.22.4](https://go.dev/dl/)
 5. Compile [BetterCap from source](https://github.com/bettercap/bettercap)
 6. Install screenrc and [my preferred configuration for it](https://github.com/aluminum-ice/screenrc)
 7. Install aircrack-ng

@@ -39,9 +39,11 @@ numpy
 # Very stable library, should be safe to upgrade.
 Pillow
 
-# Used for pwngrid identity verification (PKCS1, RSA, SHA256).
-# Very stable library, should be safe to upgrade.
-pycryptodome
+# Removed in Phase 1 with pwngrid: pycryptodome was used only for
+# pwngrid identity verification (PKCS1, RSA, SHA256) in the deleted
+# identity.py. No other module imports it. Commented out rather than
+# deleted because pip-compile is deferred to Phase 2.
+# pycryptodome~=3.9
 
 # Used for GPS plugin to parse a GPS datetime string.
 python-dateutil

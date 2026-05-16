@@ -2,7 +2,6 @@
 Description=pwnagotchi Deep Reinforcement Learning instrumenting bettercap for WiFI pwning.
 Documentation=https://pwnagotchi.ai
 Wants=network.target
-After=pwngrid-peer.service
 
 [Service]
 Type=simple

@@ -45,7 +45,6 @@
         - dphys-swapfile.service
         - pwnagotchi.service
         - bettercap.service
-        - pwngrid-peer.service
         - epd-fuse.service
         - fstrim.timer
       disable:
@@ -62,8 +61,6 @@
         # We will install bettercap from source
         # url: "https://github.com/bettercap/bettercap/releases/download/v2.31.0/bettercap_linux_armhf_v2.31.0.zip"
         ui: "https://github.com/bettercap/ui/releases/download/v1.3.0/ui.zip"
-      pwngrid:
-        url: "https://github.com/evilsocket/pwngrid/releases/download/v1.10.3/pwngrid_linux_armhf_v1.10.3.zip"
       apt:
         hold:
           - firmware-atheros
@@ -340,14 +337,7 @@
   - name: clone pwnagotchi plugins repository
     git:
       repo: https://github.com/evilsocket/pwnagotchi-plugins-contrib.git
-      dest: /usr/local/share/pwnagotchi/availaible-plugins
-
-  - name: download and install pwngrid
-    unarchive:
-      src: "{{ packages.pwngrid.url }}"
-      dest: /usr/bin
-      remote_src: yes
-      mode: 0755
+      dest: /usr/local/share/pwnagotchi/available-plugins
 
   - name: Install go
     unarchive:

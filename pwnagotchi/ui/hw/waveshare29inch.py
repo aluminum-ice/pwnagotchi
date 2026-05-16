@@ -20,8 +20,6 @@ class Waveshare29inch(DisplayImpl):
         self._layout['uptime'] = (230, 0)
         self._layout['line1'] = [0, 14, 296, 14]
         self._layout['line2'] = [0, 112, 296, 112]
-        self._layout['friend_face'] = (0, 96)
-        self._layout['friend_name'] = (40, 96)
         self._layout['shakes'] = (0, 114)
         self._layout['mode'] = (268, 114)
         self._layout['status'] = {

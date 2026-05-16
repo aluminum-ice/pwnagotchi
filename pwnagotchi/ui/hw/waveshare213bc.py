@@ -20,8 +20,6 @@ class Waveshare213bc(DisplayImpl):
         self._layout['uptime'] = (147, 0)
         self._layout['line1'] = [0, 12, 212, 12]
         self._layout['line2'] = [0, 92, 212, 92]
-        self._layout['friend_face'] = (0, 76)
-        self._layout['friend_name'] = (40, 78)
         self._layout['shakes'] = (0, 93)
         self._layout['mode'] = (187, 93)
         self._layout['status'] = {

@@ -53,7 +53,7 @@ $(PWN_RELEASE).img: | $(PACKER)
 
 # If the packer or ansible files are updated, rebuild the image.
 $(PWN_RELEASE).img: $(SDIST) builder/pwnagotchi.json builder/pwnagotchi.yml $(shell find builder/data -type f)
-	sudo $(PACKER) plugins install github.com/solo-io/arm-image
+	sudo $(PACKER) plugins install github.com/solo-io/arm-image 0.2.7
 	cd builder && sudo $(UNSHARE) $(PACKER) build -var "pwn_hostname=$(PWN_HOSTNAME)" -var "pwn_version=$(PWN_VERSION)" pwnagotchi.json
 	sudo chown -R $$USER:$$USER builder/output-pwnagotchi
 	mv builder/output-pwnagotchi/image $@

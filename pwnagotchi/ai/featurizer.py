@@ -1,6 +1,6 @@
 import numpy as np
 
-import pwnagotchi.mesh.wifi as wifi
+import pwnagotchi.wifi as wifi
 
 MAX_EPOCH_DURATION = 1024
 

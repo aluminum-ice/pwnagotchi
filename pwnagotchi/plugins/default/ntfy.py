@@ -113,18 +113,6 @@ class ntfy(plugins.Plugin):
         actions = f"{wigle_button}"
         self.send_notification(title_text=title, message_text=message, file_path=filename, tags=tags, actions=actions)
 
-    def on_peer_detected(self, agent, peer):
-        title = self.options.get('on_peer_detected_title', '{self.name}').format(**locals())
-        message = self.options.get('on_peer_detected_msg', 'A new peer, {peer.name}, has been detected by your {self.name}!').format(**locals())
-        tags = self.options.get('on_peer_detected_tags', 'revolving_hearts')
-        self.send_notification(title_text=title, message_text=message, tags=tags)
-
-    def on_peer_lost(self, agent, peer):
-        title = self.options.get('on_peer_lost_title', '{self.name}').format(**locals())
-        message = self.options.get('on_peer_lost_msg', 'Your {self.name} lost connection with peer: {peer.name}.').format(**locals())
-        tags = self.options.get('on_peer_lost_tags', 'broken_heart')
-        self.send_notification(title_text=title, message_text=message, tags=tags)
-
     # TODO
 
     # ISN'T ON_NEW_PEER = ON_PEER_DETECTED ?

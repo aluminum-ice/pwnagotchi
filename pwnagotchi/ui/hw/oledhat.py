@@ -20,8 +20,6 @@ class OledHat(DisplayImpl):
         self._layout['uptime'] = (87, 0)
         self._layout['line1'] = [0, 9, 128, 9]
         self._layout['line2'] = [0, 54, 128, 54]
-        self._layout['friend_face'] = (0, 41)
-        self._layout['friend_name'] = (40, 43)
         self._layout['shakes'] = (0, 55)
         self._layout['mode'] = (107, 10)
         self._layout['status'] = {

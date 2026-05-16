@@ -20,8 +20,6 @@ class Waveshare144lcd(DisplayImpl):
         self._layout['uptime'] = (0, 25)
         self._layout['line1'] = [0, 12, 127, 12]
         self._layout['line2'] = [0, 116, 127, 116]
-        self._layout['friend_face'] = (12, 88)
-        self._layout['friend_name'] = (1, 103)
         self._layout['shakes'] = (26, 117)
         self._layout['mode'] = (0, 117)
         self._layout['status'] = {

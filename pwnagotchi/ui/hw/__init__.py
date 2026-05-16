@@ -14,6 +14,7 @@ from pwnagotchi.ui.hw.waveshare29inch import Waveshare29inch
 from pwnagotchi.ui.hw.waveshare144lcd import Waveshare144lcd
 from pwnagotchi.ui.hw.waveshare154inch import Waveshare154inch
 from pwnagotchi.ui.hw.waveshare213d import Waveshare213d
+from pwnagotchi.ui.hw.waveshare213g import Waveshare213g
 from pwnagotchi.ui.hw.waveshare213bc import Waveshare213bc
 from pwnagotchi.ui.hw.waveshare213inb_v4 import Waveshare213bV4
 from pwnagotchi.ui.hw.waveshare35lcd import Waveshare35lcd
@@ -69,6 +70,9 @@ def display_for(config):
 
     elif config['ui']['display']['type'] == 'waveshare213d':
         return Waveshare213d(config)
+
+    elif config['ui']['display']['type'] == 'waveshare213g':
+        return Waveshare213g(config)
 
     elif config['ui']['display']['type'] == 'waveshare213bc':
         return Waveshare213bc(config)
