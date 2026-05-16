@@ -21,8 +21,6 @@ class Papirus(DisplayImpl):
         self._layout['uptime'] = (135, 0)
         self._layout['line1'] = [0, 11, 200, 11]
         self._layout['line2'] = [0, 85, 200, 85]
-        self._layout['friend_face'] = (0, 69)
-        self._layout['friend_name'] = (40, 71)
         self._layout['shakes'] = (0, 86)
         self._layout['mode'] = (175, 86)
         self._layout['status'] = {

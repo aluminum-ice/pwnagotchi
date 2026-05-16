@@ -20,8 +20,6 @@ class LcdHat(DisplayImpl):
         self._layout['uptime'] = (175, 0)
         self._layout['line1'] = [0, 14, 240, 14]
         self._layout['line2'] = [0, 108, 240, 108]
-        self._layout['friend_face'] = (0, 92)
-        self._layout['friend_name'] = (40, 94)
         self._layout['shakes'] = (0, 109)
         self._layout['mode'] = (215, 109)
         self._layout['status'] = {
