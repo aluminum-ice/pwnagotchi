@@ -1,0 +1,34 @@
+  - name: make firmware
+    shell: "source ./setup_env.sh && make"
+    args:
+      executable: /bin/bash
+      chdir: /usr/local/src/nexmon/
+    environment:
+      ARCHFLAGS:  "{{ arch_flags }}" 
+      QEMU_UNAME: "{{ kernel }}"
+
+  - name: make firmware patch (bcm43455c0)
+    shell: "source ./setup_env.sh && cd /usr/local/src/nexmon/patches/{{ patch }}/nexmon/ && make"
+    args:
+      executable: /bin/bash
+      chdir: /usr/local/src/nexmon/
+    environment:
+      ARCHFLAGS:  "{{ arch_flags }}" 
+      QEMU_UNAME: "{{ kernel }}"
+
+  - name: install new firmware (bcm43455c0)
+    copy:
+      src: "/usr/local/src/nexmon/patches/{{ patch }}/nexmon/{{ firmware }}"
+      dest: "/usr/lib/firmware/brcm/{{ firmware }}"
+      follow: true
+
+  - name: backup original driver
+    command: "mv /usr/lib/modules/{{ kernel }}/kernel/drivers/net/wireless/broadcom/brcm80211/brcmfmac/brcmfmac.ko.xz /usr/lib/modules/{{ kernel }}/kernel/drivers/net/wireless/broadcom/brcm80211/brcmfmac/brcmfmac.ko.xz.orig"
+
+  - name: copy modified driver
+    copy:
+      src: "/usr/local/src/nexmon/patches/driver/brcmfmac_{{ kernel_min }}.y-nexmon/brcmfmac.ko"
+      dest: "/usr/lib/modules/{{ kernel }}/kernel/drivers/net/wireless/broadcom/brcm80211/brcmfmac/brcmfmac.ko"
+
+  - name : load brcmfmac drivers
+    command: "/sbin/depmod -a {{ kernel }}"

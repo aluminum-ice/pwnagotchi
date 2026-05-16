@@ -328,9 +328,12 @@ def iface_channels(ifname):
 
 
 def led(on=True):
-    with open('/sys/class/leds/led0/brightness', 'w+t') as fp:
-        fp.write("%d" % (0 if on is True else 1))
-
+    if os.path.exists("/sys/class/leds/led0"):
+        with open('/sys/class/leds/led0/brightness', 'w+t') as fp:
+            fp.write("%d" % (0 if on is True else 1))
+    else:
+        with open('/sys/class/leds/ACT/brightness', 'w+t') as fp:
+            fp.write("%d" % (0 if on is True else 1))
 
 def blink(times=1, delay=0.3):
     for _ in range(0, times):

@@ -2,6 +2,7 @@ from threading import Event
 import _thread
 import logging
 import time
+import os
 
 import pwnagotchi.plugins as plugins
 
@@ -16,13 +17,26 @@ class Led(plugins.Plugin):
         self._is_busy = False
         self._event = Event()
         self._event_name = None
-        self._led_file = "/sys/class/leds/led0/brightness"
         self._delay = 200
+
+        if os.path.exists("/sys/class/leds/led0"):
+            self._led_file = "/sys/class/leds/led0/brightness"
+        elif os.path.exists("/sys/class/leds/ACT"):
+            self._led_file = "/sys/class/leds/ACT/brightness"
+        else:
+            logging.error("[led] files '%s' and '%s' are both missing", "/sys/class/leds/ACT/brightness", "/sys/class/leds/led0")
 
     # called when the plugin is loaded
     def on_loaded(self):
-        self._led_file = "/sys/class/leds/led%d/brightness" % self.options['led']
         self._delay = int(self.options['delay'])
+
+        if os.path.exists("/sys/class/leds/led%d/brightness" % self.options['led']):
+            self._led_file = "/sys/class/leds/led%d/brightness" % self.options['led']
+        elif os.path.exists("/sys/class/leds/ACT") and self.options['led'] == 0:
+            self._led_file = "/sys/class/leds/ACT/brightness"
+        elif os.path.exists("/sys/class/leds/ACT") and self.options['led'] != 0:
+            self._led_file = "/sys/class/leds/ACT/brightness"
+            logging.warn("[led] option '%s' does not lead to a valid /sys/class/leds path", self.options['led'])
 
         logging.info("[led] plugin loaded for %s" % self._led_file)
         self._on_event('loaded')
