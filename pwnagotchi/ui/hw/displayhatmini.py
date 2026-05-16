@@ -20,8 +20,6 @@ class DisplayHatMini(DisplayImpl):
         self._layout['uptime'] = (240, 0)
         self._layout['line1'] = [0, 14, 320, 14]
         self._layout['line2'] = [0, 220, 320, 220]
-        self._layout['friend_face'] = (0, 130)
-        self._layout['friend_name'] = (40, 135)
         self._layout['shakes'] = (0, 220)
         self._layout['mode'] = (280, 220)
         self._layout['status'] = {

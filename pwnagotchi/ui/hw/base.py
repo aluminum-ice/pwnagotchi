@@ -17,8 +17,6 @@ class DisplayImpl(object):
             'uptime': (0, 0),
             'line1': (0, 0),
             'line2': (0, 0),
-            'friend_face': (0, 0),
-            'friend_name': (0, 0),
             'shakes': (0, 0),
             'mode': (0, 0),
             # status is special :D
