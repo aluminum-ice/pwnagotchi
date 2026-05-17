@@ -326,22 +326,20 @@
   # install failures (e.g. atari-py being pulled in by a gym
   # version newer than 0.14 when compiled on x86).
   #
+  # requirements.in is uploaded directly by the pwnagotchi.json
+  # file provisioner (separate from the sdist) so it is always
+  # present at this path regardless of sdist contents.
+  #
   # Key flags:
   #   --resolver=backtracking  required by requirements.in comment
   #   --strip-extras           prevents extras (e.g. gym[atari])
   #                            from leaking into the lock file
-  #   --prefer-binary          prefer piwheels binary wheels over
-  #                            sdists; already set in requirements.in
-  #                            but explicit here for safety
-  #   --output-file            write back to requirements.txt in the
-  #                            extracted sdist source tree so that
-  #                            the subsequent pip install step picks
-  #                            it up correctly
+  #   --output-file            write back to requirements.txt so
+  #                            the subsequent pip install step
+  #                            picks it up correctly
   # ============================================================
   - name: Regenerate requirements.txt from requirements.in (armhf pip-compile)
     shell: |
-      cd /usr/local/src/pwnagotchi
-      tar --strip-components=1 -xzf pwnagotchi-{{ pwnagotchi.version }}.tar.gz pwnagotchi-{{ pwnagotchi.version }}/requirements.in
       pip-compile \
         --resolver=backtracking \
         --strip-extras \
