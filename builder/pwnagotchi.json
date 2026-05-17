@@ -6,7 +6,15 @@
       "iso_url": "https://downloads.raspberrypi.org/raspios_oldstable_lite_armhf/images/raspios_oldstable_lite_armhf-2024-03-12/2024-03-12-raspios-bullseye-armhf-lite.img.xz",
       "iso_checksum": "sha256:51faf3c91a940b26ad344965b5a7c4b5b389cbccfd796040f4fb7c0dcf4dd860",
       "target_image_size": 10368709120,
-      "qemu_args": ["-cpu", "cortex-a53"]
+      # QEMU user-mode emulation (qemu-arm-static) does not support CPU model
+      # selection the way qemu-system-arm does. The arm-image packer plugin uses
+      # user-mode QEMU, so cortex-a53 is not a valid value here even though the
+      # Zero 2 W uses a Cortex-A53. arm1176 is retained from the original JSON
+      # as the value the plugin expects; it does not affect the armv7l instruction
+      # set used during the build (that is controlled by ARCHFLAGS in the Ansible
+      # playbook). The CPU mismatch between this value and the target hardware is
+      # a known limitation of the arm-image plugin with user-mode QEMU.
+      "qemu_args": ["-cpu", "arm1176"]
     }
   ],
   "provisioners": [
