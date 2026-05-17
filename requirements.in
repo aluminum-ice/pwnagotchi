@@ -1,4 +1,9 @@
-# To convert into requirements.txt use 'pip-compile --resolver=backtracking --strip-extras  --output-file=requirements.txt requirements.in'
+# To convert into requirements.txt use:
+#   pip-compile --resolver=backtracking --strip-extras --output-file=requirements.txt requirements.in
+#
+# IMPORTANT: pip-compile must be run inside a Bullseye 32-bit armhf environment
+# (the build image itself, via the Ansible pip-compile task) to ensure correct
+# platform-specific resolution via piwheels. Do NOT run on an x86 dev machine.
 
 # If you get "error: no such option: --prefer-binary" then you need to run:
 #   pip3 install --upgrade "pip>=20.2"
@@ -12,37 +17,36 @@ dbus-python
 file-read-backwards
 
 # Only using basic Flask and Flask plugin features.
-# Should be kept up-to-date as Flask is notorious for breaking
-# environments with their extremely loose dependency definitions.
-flask-cors
-flask-wtf
-flask
+# Flask 1.x is pinned for Phase 1. Flask 3.x upgrade is Phase 2 work.
+# Do NOT allow pip-compile to resolve Flask 2.x or 3.x here.
+flask~=1.0
+flask-cors~=3.0
+flask-wtf~=0.15
 
 # Used for modeling AI parameters.
 # NOTE: stable-baselines wants gym[atari,classic_control] but we
 # can't satisfy the "atari" extra because it requires ale-py
 # which has no source distributions or RasPi wheels.
-# Using pip's new backtracking resolver from pip>=20.3 is required
-# as it improves handling of extras required by indirect dependencies.
-# NOTE: gym v0.22 modified the gym.Env API.
-gym
+# Pinned to exactly 0.14.0 because:
+#   - 0.15+ introduced the atari extra which pulls in atari-py
+#   - gym 0.19.0 has malformed metadata rejected by pip>=24.1
+#   - 0.14.0 is the last clean version compatible with stable-baselines 2.x
+gym==0.14.0
 
 # Used for Inky pHAT and wHAT displays.
 inky
 
 # Used in the AI and UI layers.
-# Only using basic numpy features.
-numpy
+# Pinned to match stable-baselines 2.10.2 compatibility.
+numpy~=1.21.4
 
 # Used in the UI layer.
 # Only using core PIL features (Image, ImageFont, ImageDraw).
-# Very stable library, should be safe to upgrade.
-Pillow
+Pillow>=5.4
 
 # Removed in Phase 1 with pwngrid: pycryptodome was used only for
 # pwngrid identity verification (PKCS1, RSA, SHA256) in the deleted
-# identity.py. No other module imports it. Commented out rather than
-# deleted because pip-compile is deferred to Phase 2.
+# identity.py. No other module imports it.
 # pycryptodome~=3.9
 
 # Used for GPS plugin to parse a GPS datetime string.
@@ -51,10 +55,8 @@ python-dateutil
 # Used exclusively to convert legacy YAML configs to TOML.
 PyYAML
 
-# Used for HTTP requests with bettercap, pwngrid, and plugins.
-# Only using core library features (GET, POST, Sessions).
-# Very stable library, should be safe to upgrade.
-requests
+# Used for HTTP requests with bettercap and plugins.
+requests~=2.21
 
 # Used for WiFi pwnage and WiGLE plugin.
 scapy
@@ -76,10 +78,11 @@ stable-baselines==2.10.2
 # breaking API changes in preparation for their v2.X release.
 
 # Used for loading and writing configs.
-toml
+toml~=0.10
 
 # Used for communicating with bettercap.
-websockets
+# Pinned to 8.x API used by bettercap.py; websockets 9+ has breaking changes.
+websockets~=8.1
 
 # WARNING: conflict prevention hack!
 # flask v1.X requires "Jinja2 >= 2.10, < 3.0"
@@ -87,4 +90,4 @@ websockets
 # function that was later removed in MarkupSafe v2.1.0.
 # Jinja2 v3.0 no longer uses the deprecated function but
 # falls outside the version range requested by flask.
-MarkupSafe
+MarkupSafe<2.1.0
