@@ -7,6 +7,13 @@ package (the original deletion left five core modules importing the
 now-absent ``pwnagotchi.mesh`` and the daemon would not boot).
 
 All assert that the pwngrid / peer-advertising surface stays removed.
+
+Three further tests (added in Phase 1.5) guard the dead-code sweep so the
+removed surface cannot be silently reintroduced: orphaned ``Voice``
+peer/inbox methods (sub-task A), the dead ``friend_face`` / ``friend_name``
+hw-layout keys (sub-task B), and the unreachable grateful mood logic
+(sub-task C).
+
 Written with the stdlib ``unittest`` only -- pytest is not installed until
 Phase 2 -- and absorbed into the pytest suite later. Fast: no real I/O,
 no mocking framework.
@@ -21,6 +28,7 @@ import importlib
 import os
 import subprocess
 import sys
+import types
 import unittest
 
 PWN_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -155,6 +163,114 @@ class Phase1RemovalTests(unittest.TestCase):
             sorted(offending), [],
             "pwnagotchi.mesh (deleted) is still referenced in: %s"
             % sorted(offending))
+
+    # --- Phase 1.5 dead-code-sweep guards ----------------------------------
+
+    def test_voice_peer_methods_removed(self):
+        # Sub-task A: on_new_peer / on_lost_peer / on_unread_messages lost
+        # their only callers when the matching View methods were deleted in
+        # Phase 1. pwnagotchi.voice imports only stdlib, so this is a direct
+        # in-process attribute check.
+        import pwnagotchi.voice as voice
+        for attr in ('on_unread_messages', 'on_new_peer', 'on_lost_peer'):
+            self.assertFalse(
+                hasattr(voice.Voice, attr),
+                "Voice.%s reappeared (removed in Phase 1.5 sub-task A)"
+                % attr)
+
+    def test_no_friend_layout_keys_in_hw_modules(self):
+        # Sub-task B: friend_face / friend_name are dead layout keys (View
+        # stopped reading them in Phase 1). They must not reappear in any hw
+        # module's layout() dict.
+        #
+        # layout() is an instance method; reaching it imports
+        # pwnagotchi.ui.fonts, which does `from PIL import ImageFont` at
+        # import time. PIL is absent on a dev/CI host but present on the Pi
+        # image (CLAUDE.md). When missing, install a minimal in-process PIL
+        # stub so the behavioural check still runs, and strip it again in a
+        # finally so a fake PIL cannot leak into other tests.
+        hw_dir = os.path.join(PWN_ROOT, 'pwnagotchi', 'ui', 'hw')
+        mod_names = sorted(
+            os.path.basename(p)[:-3]
+            for p in glob.glob(os.path.join(hw_dir, '*.py'))
+            if os.path.basename(p) not in ('__init__.py', 'base.py'))
+        self.assertGreater(
+            len(mod_names), 0,
+            "no hw modules discovered; this guard would be vacuous")
+
+        injected = []
+        if 'PIL' not in sys.modules:
+            try:
+                import PIL  # noqa: F401
+            except ImportError:
+                class _StubFont(object):
+                    def __init__(self, size=10):
+                        self.size = size if isinstance(size, int) else 10
+
+                def _truetype(*a, **k):
+                    size = k.get('size')
+                    if size is None and len(a) >= 2:
+                        size = a[1]
+                    return _StubFont(size)
+
+                pil = types.ModuleType('PIL')
+                imagefont = types.ModuleType('PIL.ImageFont')
+                imagefont.truetype = _truetype
+                image = types.ModuleType('PIL.Image')
+                pil.ImageFont = imagefont
+                pil.Image = image
+                for _n, _m in (('PIL', pil), ('PIL.ImageFont', imagefont),
+                               ('PIL.Image', image)):
+                    sys.modules[_n] = _m
+                    injected.append(_n)
+
+        try:
+            from pwnagotchi.ui.hw.base import DisplayImpl
+            checked = set()
+            for name in mod_names:
+                mod = importlib.import_module('pwnagotchi.ui.hw.' + name)
+                impls = [
+                    c for c in vars(mod).values()
+                    if isinstance(c, type) and issubclass(c, DisplayImpl)
+                    and c is not DisplayImpl
+                    and c.__module__ == mod.__name__]
+                self.assertTrue(
+                    impls,
+                    "no DisplayImpl subclass found in hw module %r" % name)
+                for cls in impls:
+                    # waveshare1/2/213inb_v4 branch their layout on the
+                    # display 'color'; exercise both branches.
+                    for color in ('black', 'red'):
+                        cfg = {'ui': {
+                            'font': {'name': 'DejaVuSansMono',
+                                     'size_offset': 0},
+                            'display': {'color': color}}}
+                        layout = cls(cfg).layout()
+                        for key in ('friend_face', 'friend_name'):
+                            self.assertNotIn(
+                                key, layout,
+                                "%s.layout() still defines %r (removed in "
+                                "Phase 1.5 sub-task B)" % (name, key))
+                checked.add(name)
+            self.assertEqual(
+                checked, set(mod_names),
+                "not every hw module was behaviourally checked: missing %s"
+                % sorted(set(mod_names) - checked))
+        finally:
+            for _n in injected:
+                sys.modules.pop(_n, None)
+
+    def test_grateful_mood_removed(self):
+        # Sub-task C: _has_support_network_for() became a constant False
+        # after Phase 1 removed peers, making in_good_mood() and every
+        # set_grateful() branch unreachable; all three were deleted.
+        import pwnagotchi.automata as automata
+        for attr in ('set_grateful', 'in_good_mood',
+                     '_has_support_network_for'):
+            self.assertFalse(
+                hasattr(automata.Automata, attr),
+                "Automata.%s reappeared (removed in Phase 1.5 sub-task C)"
+                % attr)
 
 
 if __name__ == '__main__':

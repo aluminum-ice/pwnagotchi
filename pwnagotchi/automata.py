@@ -31,54 +31,25 @@ class Automata(object):
     def set_ready(self):
         plugins.on('ready', self)
 
-    def in_good_mood(self):
-        return self._has_support_network_for(1.0)
-
-    def _has_support_network_for(self, factor):
-        return False
-
-    # triggered when it's a sad/bad day but you have good friends around ^_^
-    def set_grateful(self):
-        self._view.on_grateful()
-        plugins.on('grateful', self)
-
     def set_lonely(self):
-        if not self._has_support_network_for(1.0):
-            logging.info("unit is lonely")
-            self._view.on_lonely()
-            plugins.on('lonely', self)
-        else:
-            logging.info("unit is grateful instead of lonely")
-            self.set_grateful()
+        logging.info("unit is lonely")
+        self._view.on_lonely()
+        plugins.on('lonely', self)
 
     def set_bored(self):
-        factor = self._epoch.inactive_for / self._config['personality']['bored_num_epochs']
-        if not self._has_support_network_for(factor):
-            logging.warning("%d epochs with no activity -> bored", self._epoch.inactive_for)
-            self._view.on_bored()
-            plugins.on('bored', self)
-        else:
-            logging.info("unit is grateful instead of bored")
-            self.set_grateful()
+        logging.warning("%d epochs with no activity -> bored", self._epoch.inactive_for)
+        self._view.on_bored()
+        plugins.on('bored', self)
 
     def set_sad(self):
-        factor = self._epoch.inactive_for / self._config['personality']['sad_num_epochs']
-        if not self._has_support_network_for(factor):
-            logging.warning("%d epochs with no activity -> sad", self._epoch.inactive_for)
-            self._view.on_sad()
-            plugins.on('sad', self)
-        else:
-            logging.info("unit is grateful instead of sad")
-            self.set_grateful()
+        logging.warning("%d epochs with no activity -> sad", self._epoch.inactive_for)
+        self._view.on_sad()
+        plugins.on('sad', self)
 
     def set_angry(self, factor):
-        if not self._has_support_network_for(factor):
-            logging.warning("%d epochs with no activity -> angry", self._epoch.inactive_for)
-            self._view.on_angry()
-            plugins.on('angry', self)
-        else:
-            logging.info("unit is grateful instead of angry")
-            self.set_grateful()
+        logging.warning("%d epochs with no activity -> angry", self._epoch.inactive_for)
+        self._view.on_angry()
+        plugins.on('angry', self)
 
     def set_excited(self):
         logging.warning("%d epochs with activity -> excited", self._epoch.active_for)
@@ -129,8 +100,6 @@ class Automata(object):
         # after X times being active, the status is set to happy / excited
         elif self._epoch.active_for >= self._config['personality']['excited_num_epochs']:
             self.set_excited()
-        elif self._epoch.active_for >= 5 and self._has_support_network_for(5.0):
-            self.set_grateful()
 
         plugins.on('epoch', self, self._epoch.epoch - 1, self._epoch.data())
 
