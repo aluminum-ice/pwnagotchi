@@ -108,13 +108,13 @@ This repo is undergoing a structured four-phase modernisation. Each phase has a 
 
 Commit after each numbered step, not at the end of a session. One step = one commit.
 
-The full design document (rationale, risk register, dependency tables, Claude Code session guidance) is in `docs/DESIGN.md`.
+The full design document (rationale, risk register, dependency tables, Claude Code session guidance) is in `docs/design.md`.
 
 ---
 
 ### Phase 1 — pwngrid & peer-advertising removal ✅ Complete (PR #139, v1.9.0)
 
-All items complete. See `CHANGELOG.md` and `docs/DESIGN.md` Section 3 for the full record.
+All items complete. See `CHANGELOG.md` and `docs/design.md` Section 3 for the full record.
 
 **What was removed:**
 - `pwnagotchi/grid.py`, `pwnagotchi/identity.py`, `pwnagotchi/mesh/` (entire package), `pwnagotchi/plugins/default/grid.py`, `builder/data/etc/systemd/system/pwngrid-peer.service`
@@ -122,7 +122,7 @@ All items complete. See `CHANGELOG.md` and `docs/DESIGN.md` Section 3 for the fu
 - `AsyncAdvertiser` mixin from `Agent`; peer counter, advertising, and identity fingerprint from boot path
 - `on_peer_detected`, `on_peer_lost` from default plugins and plugin loader dispatch
 - pwngrid tasks from Ansible playbook; `After=pwngrid-peer.service` from `pwnagotchi.service`
-- `main.plugins.grid` block from `defaults.toml`; `pycryptodome` commented out in `requirements.in`
+- `main.plugins.grid` block from `defaults.toml`; `pycryptodome` removed from `requirements.in`
 
 **What was added/fixed:**
 - `pwnagotchi/wifi.py` — channel math relocated from deleted `mesh/wifi.py`
@@ -130,7 +130,8 @@ All items complete. See `CHANGELOG.md` and `docs/DESIGN.md` Section 3 for the fu
 - `requirements.in` — version constraints tightened: `gym==0.14.0` (avoids broken metadata in 0.19.x), `flask~=1.0`, `flask-cors~=3.0`, `flask-wtf~=0.15`, `numpy~=1.21.4`, `websockets~=8.1`, `MarkupSafe<2.1.0`
 - `requirements.txt` — removed from repo (now a generated build artifact; see `.gitignore`)
 - `builder/pwnagotchi.json` — second file provisioner added to upload `requirements.in` directly to the image so pip-compile can find it (the sdist does not include `requirements.in`)
-- `builder/pwnagotchi.yml` — pip-compile Ansible task added; `udevadm settle` added to first shell provisioner to work around arm-image plugin v0.2.7 partition-enumeration race condition
+- `builder/pwnagotchi.yml` — pip-compile Ansible task added (regenerates `requirements.txt` inside the armhf build environment on every image build)
+- `builder/pwnagotchi.json` — reverted to 2024-03-12 Bullseye image after 2025-05-06 image caused partition-enumeration failures with arm-image plugin v0.2.7 (GPT vs MBR layout incompatibility)
 
 **Breaking plugin API changes:** `on_peer_detected`, `on_peer_lost`, and `internet_available` no longer fire.
 
@@ -158,7 +159,7 @@ All items complete. See `CHANGELOG.md` and `docs/DESIGN.md` Section 3 for the fu
 5. Commit: `Phase 1.5: remove orphaned peer/inbox voice methods and stale i18n strings`
 
 **Prompt for Claude Code:**
-> *"Read `docs/DESIGN.md` Section 4.1. Run `grep -r 'on_unread_messages\|on_new_peer\|on_lost_peer' pwnagotchi/` and show me the output. Confirm the only definitions are in `voice.py` and there are no remaining callers. Then delete those three methods from `voice.py` — show me the diff before applying. Then run `scripts/language.sh update <lang>` for every language directory under `pwnagotchi/locale/`, then `make langs`. Show me which strings were marked obsolete. Commit the voice.py deletion and updated locale files together."*
+> *"Read `docs/design.md` Section 4.1. Run `grep -r 'on_unread_messages\|on_new_peer\|on_lost_peer' pwnagotchi/` and show me the output. Confirm the only definitions are in `voice.py` and there are no remaining callers. Then delete those three methods from `voice.py` — show me the diff before applying. Then run `scripts/language.sh update <lang>` for every language directory under `pwnagotchi/locale/`, then `make langs`. Show me which strings were marked obsolete. Commit the voice.py deletion and updated locale files together."*
 
 **Acceptance:** `grep -r "on_unread_messages\|on_new_peer\|on_lost_peer" pwnagotchi/voice.py` returns nothing. `make langs` exits 0.
 
@@ -175,7 +176,7 @@ All items complete. See `CHANGELOG.md` and `docs/DESIGN.md` Section 3 for the fu
 4. Commit: `Phase 1.5: remove dead friend_face/friend_name layout entries from ui/hw modules`
 
 **Prompt for Claude Code:**
-> *"Read `docs/DESIGN.md` Section 4.2. Run `grep -rl 'friend_face\|friend_name' pwnagotchi/ui/hw/` and show me the full list of affected files. For each file in that list, remove the `friend_face` and `friend_name` keys from the dict returned by the `layout()` method. Touch nothing else in those files. Show me the full file list and a representative diff before applying to all of them. After applying, run `grep -r 'friend_face\|friend_name' pwnagotchi/ui/hw/` and confirm it returns nothing. Commit."*
+> *"Read `docs/design.md` Section 4.2. Run `grep -rl 'friend_face\|friend_name' pwnagotchi/ui/hw/` and show me the full list of affected files. For each file in that list, remove the `friend_face` and `friend_name` keys from the dict returned by the `layout()` method. Touch nothing else in those files. Show me the full file list and a representative diff before applying to all of them. After applying, run `grep -r 'friend_face\|friend_name' pwnagotchi/ui/hw/` and confirm it returns nothing. Commit."*
 
 **Acceptance:** `grep -r "friend_face\|friend_name" pwnagotchi/ui/hw/` returns nothing.
 
@@ -201,7 +202,7 @@ All items complete. See `CHANGELOG.md` and `docs/DESIGN.md` Section 3 for the fu
 8. Commit: `Phase 1.5: remove unreachable grateful mood logic from automata.py and view.py`
 
 **Prompt for Claude Code:**
-> *"Read `docs/DESIGN.md` Section 4.3 carefully — there is a defect correction here that overrides earlier versions of this sub-task. Step 1: run `grep -rn 'set_grateful\|in_good_mood\|_has_support_network_for\|bond_encounters_factor' pwnagotchi/automata.py pwnagotchi/defaults.toml pwnagotchi/voice.py pwnagotchi/ui/view.py pwnagotchi/ai/epoch.py` and show me the full output. Step 2: in `pwnagotchi/ui/view.py`, replace `good_mood = self._agent.in_good_mood()` with `good_mood = False` — show me the diff before applying, touch nothing else in view.py. Step 3: delete `_has_support_network_for`, `in_good_mood`, and `set_grateful` from `automata.py` — show me the diff. Step 4: in `set_lonely`, `set_bored`, `set_sad`, `set_angry`, and `next_epoch`, remove the `else: self.set_grateful()` branch and the `if not self._has_support_network_for(...):` condition; dedent the remaining body — show me each diff before applying. Step 5: in `set_bored` and `set_sad`, remove the now-unused local `factor` variable; do not touch the `factor` parameter in `set_angry`. Step 6: do NOT remove `bond_encounters_factor` from `defaults.toml` — it is consumed by `pwnagotchi/ai/epoch.py:87`. Step 7: run `python -m py_compile pwnagotchi/automata.py pwnagotchi/ui/view.py`. Commit."*
+> *"Read `docs/design.md` Section 4.3 carefully — there is a defect correction here that overrides earlier versions of this sub-task. Step 1: run `grep -rn 'set_grateful\|in_good_mood\|_has_support_network_for\|bond_encounters_factor' pwnagotchi/automata.py pwnagotchi/defaults.toml pwnagotchi/voice.py pwnagotchi/ui/view.py pwnagotchi/ai/epoch.py` and show me the full output. Step 2: in `pwnagotchi/ui/view.py`, replace `good_mood = self._agent.in_good_mood()` with `good_mood = False` — show me the diff before applying, touch nothing else in view.py. Step 3: delete `_has_support_network_for`, `in_good_mood`, and `set_grateful` from `automata.py` — show me the diff. Step 4: in `set_lonely`, `set_bored`, `set_sad`, `set_angry`, and `next_epoch`, remove the `else: self.set_grateful()` branch and the `if not self._has_support_network_for(...):` condition; dedent the remaining body — show me each diff before applying. Step 5: in `set_bored` and `set_sad`, remove the now-unused local `factor` variable; do not touch the `factor` parameter in `set_angry`. Step 6: do NOT remove `bond_encounters_factor` from `defaults.toml` — it is consumed by `pwnagotchi/ai/epoch.py:87`. Step 7: run `python -m py_compile pwnagotchi/automata.py pwnagotchi/ui/view.py`. Commit."*
 
 **Acceptance:**
 - `grep -r "set_grateful\|in_good_mood\|_has_support_network_for" pwnagotchi/` returns nothing
@@ -224,24 +225,22 @@ All items complete. See `CHANGELOG.md` and `docs/DESIGN.md` Section 3 for the fu
 3. Commit: `Phase 1.5: add regression guards for dead code sweep`
 
 **Prompt for Claude Code:**
-> *"Read `docs/DESIGN.md` Section 4.4. Add three new test methods to `tests/test_phase1_removal.py` using stdlib `unittest` only: (1) `test_voice_peer_methods_removed` — import `pwnagotchi.voice`; assert that `Voice` has no attributes named `on_unread_messages`, `on_new_peer`, or `on_lost_peer`; (2) `test_no_friend_layout_keys_in_hw_modules` — import all modules under `pwnagotchi/ui/hw/` that expose a `layout()` function; for each, call `layout()` and assert neither `'friend_face'` nor `'friend_name'` is a key in the returned dict; (3) `test_grateful_mood_removed` — import `pwnagotchi.automata`; assert `Automata` has no attributes named `set_grateful`, `in_good_mood`, or `_has_support_network_for`. Run `python -m pytest tests/test_phase1_removal.py -v` and confirm all 11 tests pass. Commit."*
+> *"Read `docs/design.md` Section 4.4. Add three new test methods to `tests/test_phase1_removal.py` using stdlib `unittest` only: (1) `test_voice_peer_methods_removed` — import `pwnagotchi.voice`; assert that `Voice` has no attributes named `on_unread_messages`, `on_new_peer`, or `on_lost_peer`; (2) `test_no_friend_layout_keys_in_hw_modules` — import all modules under `pwnagotchi/ui/hw/` that expose a `layout()` function; for each, call `layout()` and assert neither `'friend_face'` nor `'friend_name'` is a key in the returned dict; (3) `test_grateful_mood_removed` — import `pwnagotchi.automata`; assert `Automata` has no attributes named `set_grateful`, `in_good_mood`, or `_has_support_network_for`. Run `python -m pytest tests/test_phase1_removal.py -v` and confirm all 11 tests pass. Commit."*
 
 **Acceptance:** `python -m pytest tests/test_phase1_removal.py -v` reports 11 passed.
 
 ---
 
 #### Phase 1.5 acceptance checklist
-
-**Status: NOT complete.** Code sweep (sub-tasks A-code, B, C, D) done and pushed on `claude/remove-voice-handlers-80F9l`. Two items remain for the builder/Pi environment (annotated below). Phase 2's entry condition ("Phase 1.5 acceptance checklist fully green") is **not** satisfied yet.
-
-- [x] `grep -r "on_unread_messages\|on_new_peer\|on_lost_peer" pwnagotchi/voice.py` returns nothing
-- [ ] `make langs` exits 0 — **deferred to builder/Pi env.** GNU gettext (`xgettext`/`msgmerge`/`msgfmt`) is unavailable in the web/CI container (apt mirrors network-blocked). The `voice.py` methods are deleted but `pwnagotchi/locale/**` `.po`/`.pot` were not regenerated. Run `scripts/language.sh update <lang>` for every locale + `make langs` there.
-- [x] `grep -r "friend_face\|friend_name" pwnagotchi/ui/hw/` returns nothing
-- [x] `grep -r "set_grateful\|in_good_mood\|_has_support_network_for" pwnagotchi/` returns nothing
-- [x] `grep -r "bond_encounters_factor" pwnagotchi/` returns nothing (if removed) — **N/A: deliberately retained** (consumed by `pwnagotchi/ai/epoch.py`; AI stack out of scope). The "if removed" condition does not apply.
-- [x] `python -m py_compile pwnagotchi/automata.py` exits 0
-- [ ] `python -m pytest tests/test_phase1_removal.py -v` reports 11 passed — **verified on builder/Pi only.** pytest lands in Phase 2; here `python -m unittest tests.test_phase1_removal` runs 11 tests, 0 failures, 1 pre-existing environmental skip (`test_agent_imports_cleanly`, no `flask` on a dev host). Literal "11 passed" holds on the flask+TF image.
-- [x] CHANGELOG.md updated
+- [ ] `grep -r "on_unread_messages\|on_new_peer\|on_lost_peer" pwnagotchi/voice.py` returns nothing
+- [ ] `make langs` exits 0
+- [ ] `grep -r "friend_face\|friend_name" pwnagotchi/ui/hw/` returns nothing
+- [ ] `grep -r "set_grateful\|in_good_mood\|_has_support_network_for" pwnagotchi/` returns nothing
+- [ ] `grep "in_good_mood" pwnagotchi/ui/view.py` returns nothing (replaced with `good_mood = False`)
+- [ ] `grep "bond_encounters_factor" pwnagotchi/defaults.toml` returns the entry (it was NOT removed — consumed by ai/epoch.py)
+- [ ] `python -m py_compile pwnagotchi/automata.py pwnagotchi/ui/view.py` exits 0
+- [ ] `python -m pytest tests/test_phase1_removal.py -v` reports 11 passed
+- [ ] CHANGELOG.md updated
 
 ---
 
