@@ -25,7 +25,7 @@ If you'd like to support my work, contributions can be sent to my BTC wallet: 1C
 
 ![50653A40-45F3-4D92-A89E-5FCBD20F60CC_4_5005_c](https://github.com/aluminum-ice/pwnagotchi/assets/12374267/04761c6e-f6a7-40b1-803f-6ee6e6bf2278)
 
-**This fork does not support the original RPiZW. The board is obsolete and underpowered. Issues about the original RPiZW will be immediately closed.**
+**I do not support the original RPiZW. The board is obsolete and unpowered. Spend $15 and get an RPiZ2W. Issues about the original RPiZW will be immediately closed.**
 
 ---
 

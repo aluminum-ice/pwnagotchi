@@ -3,9 +3,9 @@
     {
       "name": "pwnagotchi",
       "type": "arm-image",
-      "iso_url": "https://downloads.raspberrypi.org/raspios_oldstable_lite_armhf/images/raspios_oldstable_lite_armhf-2023-05-03/2023-05-03-raspios-buster-armhf-lite.img.xz",
-      "iso_checksum": "3d210e61b057de4de90eadb46e28837585a9b24247c221998f5bead04f88624c",
-      "target_image_size": 9368709120,
+      "iso_url": "https://downloads.raspberrypi.org/raspios_oldstable_lite_armhf/images/raspios_oldstable_lite_armhf-2024-03-12/2024-03-12-raspios-bullseye-armhf-lite.img.xz",
+      "iso_checksum": "sha256:51faf3c91a940b26ad344965b5a7c4b5b389cbccfd796040f4fb7c0dcf4dd860",
+      "target_image_size": 10368709120,
       "qemu_args": ["-cpu", "arm1176"]
     }
   ],
@@ -13,8 +13,8 @@
     {
       "type": "shell",
       "inline": [
-        "mv /etc/ld.so.preload /etc/ld.so.preload.DISABLED",
         "uname -a",
+        "mv /etc/ld.so.preload /etc/ld.so.preload.DISABLED",
         "dpkg-architecture",
         "mkdir -p /usr/local/src/pwnagotchi"
       ]
@@ -27,6 +27,13 @@
       "destination": "/usr/local/src/pwnagotchi/"
     },
     {
+      "type": "file",
+      "sources": [
+        "../requirements.in"
+      ],
+      "destination": "/usr/local/src/pwnagotchi/"
+    },
+    {
       "type": "shell",
       "inline": [
         "apt-get -y --allow-releaseinfo-change update",
@@ -35,6 +42,7 @@
     },
     {
       "type": "ansible-local",
+      "playbook_dir":  "extra/",
       "playbook_file": "pwnagotchi.yml",
       "extra_arguments": [ "--extra-vars \"ansible_python_interpreter=/usr/bin/python3\"" ],
       "command": "ANSIBLE_FORCE_COLOR=1 PYTHONUNBUFFERED=1 PWN_VERSION={{user `pwn_version`}} PWN_HOSTNAME={{user `pwn_hostname`}} ansible-playbook"

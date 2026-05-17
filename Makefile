@@ -53,10 +53,11 @@ $(PWN_RELEASE).img: | $(PACKER)
 
 # If the packer or ansible files are updated, rebuild the image.
 $(PWN_RELEASE).img: $(SDIST) builder/pwnagotchi.json builder/pwnagotchi.yml $(shell find builder/data -type f)
-	sudo $(PACKER) plugins install github.com/solo-io/arm-image
+	sudo $(PACKER) plugins install github.com/solo-io/arm-image 0.2.7
 	cd builder && sudo $(UNSHARE) $(PACKER) build -var "pwn_hostname=$(PWN_HOSTNAME)" -var "pwn_version=$(PWN_VERSION)" pwnagotchi.json
 	sudo chown -R $$USER:$$USER builder/output-pwnagotchi
 	mv builder/output-pwnagotchi/image $@
+	pishrink.sh $@
 
 # If any of these files are updated, rebuild the checksums.
 $(PWN_RELEASE).sha256: $(PWN_RELEASE).img
@@ -66,8 +67,12 @@ $(PWN_RELEASE).sha256: $(PWN_RELEASE).img
 $(PWN_RELEASE).zip: $(PWN_RELEASE).img $(PWN_RELEASE).sha256
 	zip $(PWN_RELEASE).zip $^
 
+# If any of the input files are updated, rebuild the archive.
+$(PWN_RELEASE).7z: $(PWN_RELEASE).img $(PWN_RELEASE).sha256
+	7z a $(PWN_RELEASE).7z $^
+
 .PHONY: image
-image: $(PWN_RELEASE).zip
+image: $(PWN_RELEASE).zip $(PWN_RELEASE).7z
 
 clean:
 	- python3 setup.py clean --all
@@ -75,5 +80,4 @@ clean:
 	- rm -f $(PACKER)
 	- rm -f $(PWN_RELEASE).*
 	- sudo rm -rf builder/output-pwnagotchi builder/packer_cache
-
 

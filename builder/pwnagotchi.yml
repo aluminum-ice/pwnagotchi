@@ -7,6 +7,28 @@
     pwnagotchi:
       hostname: "{{ lookup('env', 'PWN_HOSTNAME') | default('pwnagotchi', true) }}"
       version: "{{ lookup('env', 'PWN_VERSION') | default('master', true) }}"
+    boards:
+      RPiZW:
+        kernel_min: "6.1"
+        kernel:     "6.1.21+"
+        firmware:   "brcmfmac43430-sdio.bin"
+        patch:      "bcm43430a1/7_45_41_46"
+        cpu:        arm1176
+        arch_flags: "-arch armv6l"
+      RPiZ2W:
+        kernel_min: "6.1"
+        kernel:     "6.1.21-v7+"
+        firmware:   "brcmfmac43436-sdio.bin"
+        patch:      "bcm43436b0/9_88_4_65"
+        cpu:        any #cortex-a53
+        arch_flags: "-arch armv7l"
+      RPi4B:
+        kernel_min: "6.1"
+        kernel:     "6.1.21-v7l+"
+        firmware:   "brcmfmac43455-sdio.bin"
+        patch:      "bcm43455c0/7_45_206"
+        cpu:        any #cortex-a72
+        arch_flags: "-arch armv7l"
     system:
       boot_options:
         - "dtoverlay=dwc2"
@@ -32,12 +54,11 @@
         - apt-daily-upgrade.service
         - wpa_supplicant.service
         - bluetooth.service
-        - triggerhappy.service
         - ifup@wlan0.service
         - dnsmasq.service
     packages:
       bettercap:
-        # We will install bettercap v2.32 from source
+        # We will install bettercap from source
         # url: "https://github.com/bettercap/bettercap/releases/download/v2.31.0/bettercap_linux_armhf_v2.31.0.zip"
         ui: "https://github.com/bettercap/ui/releases/download/v1.3.0/ui.zip"
       apt:
@@ -53,7 +74,7 @@
           - triggerhappy
           - wpa_supplicant
           - nfs-common
-          # Remove every golang package because we will install go-1.20.2
+          # Remove every golang package because we will install the latest go
           - golang*
         install:
           - rsync
@@ -70,14 +91,14 @@
           - libatlas-base-dev
           - libjasper-dev
           - libgtk-3-0
-          - libqtgui4
-          - libqt4-test
+          - libqt5gui5
+          - libqt5test5
           - libopenjp2-7
           - libtiff5
           - tcpdump
           - lsof
-          - libilmbase23
-          - libopenexr23
+          - libilmbase25
+          - libopenexr25
           - libgstreamer1.0-0
           - libavcodec58
           - libavformat58
@@ -104,8 +125,13 @@
           - cryptsetup
           - dnsmasq
           - aircrack-ng
+          - binutils
+          - lnav
+          - p7zip-full
+          - libopenblas-dev
           - raspberrypi-kernel-headers
           - libgmp3-dev
+        nexmon:
           - qpdf
           - bison
           - flex
@@ -113,12 +139,17 @@
           - autoconf
           - libtool
           - texinfo
-          - binutils
-          - lnav
-          - p7zip-full
+          - gcc-arm-none-eabi
+          - wl
+          - libfl-dev
+          - g++
+          - xxd
+    go_lang:    "go1.22.4"
+    swap_size:  "512"
 
   environment:
-    ARCHFLAGS: "-arch armv7l"
+    ARCHFLAGS:  "{{ boards.RPiZ2W.arch_flags }}" 
+    QEMU_UNAME: "{{ boards.RPiZ2W.kernel }}"
 
   tasks:
   - name: System details
@@ -130,10 +161,12 @@
       - "{{ ansible_distribution_major_version }}"
       - "{{ ansible_architecture }}"
       - "{{ ansible_machine }}"
-  - name: change hostname
-    hostname:
-      name: "{{pwnagotchi.hostname}}"
-    when: lookup('file', '/etc/hostname') == "raspberrypi"
+
+  - name: Copy using inline content
+    copy:
+      content: "{{pwnagotchi.hostname}}"
+      dest: /etc/hostname
+      mode: '0644'
     register: hostname
 
   - name: add hostname to /etc/hosts
@@ -173,14 +206,14 @@
 
   - name: install packages
     apt:
-      name: "{{ packages.apt.install }}"
+      name: "{{ packages.apt.install + packages.apt.nexmon }}"
       state: present
 
   - name: configure dphys-swapfile
     lineinfile:
       path: /etc/dphys-swapfile
       regexp: "^CONF_SWAPSIZE=.*$"
-      line: "CONF_SWAPSIZE=512"
+      line: "CONF_SWAPSIZE={{ swap_size }}"
 
   - name: clone papirus repository
     git:
@@ -275,11 +308,46 @@
   # pip v20.3 uses a newer dependency resolver that better handles our unique situation.
   # Specifically, it handles mismatches between direct requirements without extras and
   # indirect requirements that do want extras (e.g. gym vs stable-baselines->gym[atari]).
-  - name: Upgrade pip and install rpi-hardware-pwm
+  - name: Upgrade pip and install pip-tools
     pip:
       name:
-        - pip>=20.3
+        - pip>=23.3
+        - pip-tools
         - rpi-hardware-pwm
+
+  # ============================================================
+  # NEW TASK (Phase 1 fix): Regenerate requirements.txt
+  # ============================================================
+  # Run pip-compile in-place on the target armhf environment so
+  # that requirements.txt is always resolved against the actual
+  # runtime platform (Python 3.9, armhf, piwheels).  This
+  # guarantees the locked file matches the build environment and
+  # prevents stale or cross-compiled lock files from causing
+  # install failures (e.g. atari-py being pulled in by a gym
+  # version newer than 0.14 when compiled on x86).
+  #
+  # requirements.in is uploaded directly by the pwnagotchi.json
+  # file provisioner (separate from the sdist) so it is always
+  # present at this path regardless of sdist contents.
+  #
+  # Key flags:
+  #   --resolver=backtracking  required by requirements.in comment
+  #   --strip-extras           prevents extras (e.g. gym[atari])
+  #                            from leaking into the lock file
+  #   --output-file            write back to requirements.txt so
+  #                            the subsequent pip install step
+  #                            picks it up correctly
+  # ============================================================
+  - name: Regenerate requirements.txt from requirements.in (armhf pip-compile)
+    shell: |
+      pip-compile \
+        --resolver=backtracking \
+        --strip-extras \
+        --extra-index-url "https://www.piwheels.org/simple" \
+        --output-file /usr/local/src/pwnagotchi/requirements.txt \
+        /usr/local/src/pwnagotchi/requirements.in
+    args:
+      executable: /bin/bash
 
   # We need the --ignore-installed option so that pip simply overwrites/upgrades existing
   # packages instead of trying to uninstall them first.  While this sounds dangerous,
@@ -300,15 +368,27 @@
       repo: https://github.com/evilsocket/pwnagotchi-plugins-contrib.git
       dest: /usr/local/share/pwnagotchi/available-plugins
 
-  # Install go-1.21.5
-  - name: Install go-1.22.4
+  - name: Install go
     unarchive:
-      src: https://go.dev/dl/go1.22.4.linux-armv6l.tar.gz
+      src: "https://go.dev/dl/{{ go_lang }}.linux-armv6l.tar.gz"
       dest: /usr/local
       remote_src: yes
     register: golang
 
-  - name: Update .bashrc for go-1.20.6
+  - name: Add pi user
+    user:
+      name: pi
+      password: $6$4GepSJAS.XnvPz1b$L2iBAZUsMahsVNZf3bWI6djwP2GuA6gy7LAtIMqsdhanjX4pju0v9YMeR3ZCQRQtfv5.SJsDZsPV3CYaqMsTK.
+      uid: 1000
+      shell: /bin/bash
+      create_home: true
+      home: "/home/pi"
+      group: pi
+      groups: adm,dialout,cdrom,sudo,audio,video,plugdev,games,users,input,render,netdev,gpio,i2c,spi
+      append: yes
+    register: createduser
+
+  - name: Update .bashrc for go
     blockinfile:
       dest: /home/pi/.bashrc
       state: present
@@ -318,14 +398,15 @@
       insertafter: EOF
     when: golang.changed
 
-  - name: Install bettercap v2.32
-    shell: "export GOPATH=$HOME/go && export PATH=/usr/local/go/bin:$PATH:$GOPATH/bin && go env -w GO111MODULE=off && go get github.com/bettercap/bettercap && cd $GOPATH/src/github.com/bettercap/bettercap && make build && make install"
+  - name: Install bettercap (from source)
+    shell: "export GOPATH=$HOME/go && export PATH=/usr/local/go/bin:$PATH:$GOPATH/bin && go env -w GO111MODULE=on && go get github.com/bettercap/bettercap && cd $GOPATH/src/github.com/bettercap/bettercap && make build && make install"
     args:
       executable: /bin/bash
     register: bettercap
+    when: createduser.changed
 
-  - name: Link bettercap v2.32
-    command: ln -s /usr/local/bin/bettercap /usr/bin/bettercap 
+  - name: Link bettercap
+    command: ln -s /usr/local/bin/bettercap /usr/bin/bettercap
     when: bettercap.changed
 
   - name: clone bettercap caplets
@@ -350,214 +431,71 @@
   # Install nexmon to fix wireless scanning (takes 2.5G of space)
   - name: clone nexmon repository
     git:
-      repo: https://github.com/seemoo-lab/nexmon.git
+      repo: https://github.com/DrSchottky/nexmon.git
       dest: /usr/local/src/nexmon
-#      version: bfb3fe90c881498d7ee245b38f16722c1de26fa1
     register: nexmongit
 
-  - name: configure libisl
-    command: chdir=/usr/local/src/nexmon/buildtools/isl-0.10/ ./configure
+  # Install nexmon for RPiZ2W
+  - name: build and install nexmon for RPiZ2W
+    include_tasks: nexmon.yml
+    vars:
+      arch_flags: "{{ boards.RPiZ2W.arch_flags }}"
+      kernel_min: "{{ boards.RPiZ2W.kernel_min }}"
+      kernel:     "{{ boards.RPiZ2W.kernel }}"
+      patch:      "{{ boards.RPiZ2W.patch }}"
+      firmware:   "{{ boards.RPiZ2W.firmware }}"
+    when: nexmongit.changed
 
-  - name: make libisl
-    command: chdir=/usr/local/src/nexmon/buildtools/isl-0.10/ make
+  # Install nexmon for RPiZW
+  - name: build and install nexmon for RPiZW
+    include_tasks: nexmon.yml
+    vars:
+      arch_flags: "{{ boards.RPiZW.arch_flags }}"
+      kernel_min: "{{ boards.RPiZW.kernel_min }}"
+      kernel:     "{{ boards.RPiZW.kernel }}"
+      patch:      "{{ boards.RPiZW.patch }}"
+      firmware:   "{{ boards.RPiZW.firmware }}"
+    when: nexmongit.changed
 
-  - name: install libisl
-    command: chdir=/usr/local/src/nexmon/buildtools/isl-0.10/ make install
+  # Install nexmon for RPi4B
+  - name: build and install nexmon for RPi4B
+    include_tasks: nexmon.yml
+    vars:
+      arch_flags: "{{ boards.RPi4B.arch_flags }}" 
+      kernel_min: "{{ boards.RPi4B.kernel_min }}"
+      kernel:     "{{ boards.RPi4B.kernel }}"
+      patch:      "{{ boards.RPi4B.patch }}"
+      firmware:   "{{ boards.RPi4B.firmware }}"
+    when: nexmongit.changed
 
-  - name: link libisl
-    command: ln -s /usr/local/lib/libisl.so /usr/lib/arm-linux-gnueabihf/libisl.so.10
-
-  - name: autoreconf libmpfr
-    command: chdir=/usr/local/src/nexmon/buildtools/mpfr-3.1.4/ autoreconf -f -i
-
-  - name: configure libmpfr
-    command: chdir=/usr/local/src/nexmon/buildtools/mpfr-3.1.4/ ./configure
-
-  - name: make libmpfr
-    command: chdir=/usr/local/src/nexmon/buildtools/mpfr-3.1.4/ make
-
-  - name: install libmpfr
-    command: chdir=/usr/local/src/nexmon/buildtools/mpfr-3.1.4/ make install
-
-  - name: link libmpfr
-    command: ln -s /usr/local/lib/libmpfr.so /usr/lib/arm-linux-gnueabihf/libmpfr.so.4
-
-  - name: make firmware
-    shell: "source ./setup_env.sh && make"
-    args:
-      executable: /bin/bash
-      chdir: /usr/local/src/nexmon/ 
-
-  - name: choose the right kernel version (bcm43436b0)
-    replace:
-      dest: /usr/local/src/nexmon/patches/bcm43436b0/9_88_4_65/nexmon/Makefile
-      backup: no
-      regexp: "KERNEL_VERSION = .*$"
-      replace: "KERNEL_VERSION = 5.10"
-
-  - name: choose the right kernel release (variable) (bcm43436b0)
-    lineinfile:
-      dest: /usr/local/src/nexmon/patches/bcm43436b0/9_88_4_65/nexmon/Makefile
-      insertafter: "DRIVER_FOLDER_NAME = .*$"
-      line: "KERNEL_RELEASE = 5.10.103-v7+"
-
-  - name: choose the right kernel release (replace string) (bcm43436b0)
-    replace:
-      dest: /usr/local/src/nexmon/patches/bcm43436b0/9_88_4_65/nexmon/Makefile
-      backup: no
-      regexp: "shell uname -r"
-      replace: "KERNEL_RELEASE"
-
-  - name: make firmware patch (bcm43436b0)
-    shell: "source ./setup_env.sh && cd /usr/local/src/nexmon/patches/bcm43436b0/9_88_4_65/nexmon/ && make"
-    args:
-      executable: /bin/bash
-      chdir: /usr/local/src/nexmon/
-
-  # - name: backup original firmware
-  #   shell: "source ./setup_env.sh && cd /usr/local/src/nexmon/patches/bcm43436b0/9_88_4_65/nexmon/ && make backup-firmware"
-  #   args:
-  #     executable: /bin/bash
-  #     chdir: /usr/local/src/nexmon/
-
-  # - name: install new firmware
-  #   shell: "source ./setup_env.sh && cd /usr/local/src/nexmon/patches/bcm43436b0/9_88_4_65/nexmon/ && make install-firmware"
-  #   args:
-  #     executable: /bin/bash
-  #     chdir: /usr/local/src/nexmon/
-
-  - name: install new firmware (bcm43436b0)
+  - name: copy 43430-sdio as 43436s-sdio for the special 43430/1 /2
     copy:
-      src: /usr/local/src/nexmon/patches/bcm43436b0/9_88_4_65/nexmon/brcmfmac43436-sdio.bin
-      dest: /lib/firmware/brcm/brcmfmac43436-sdio.bin
+      src: /usr/lib/firmware/brcm/brcmfmac43430-sdio.bin
+      dest: /usr/lib/firmware/brcm/brcmfmac43436s-sdio.bin
+      follow: true
+    when: nexmongit.changed
 
-  - name: choose the right kernel version (bcm43430a1)
-    replace:
-      dest: /usr/local/src/nexmon/patches/bcm43430a1/7_45_41_46/nexmon/Makefile
-      backup: no
-      regexp: "KERNEL_VERSION = .*$"
-      replace: "KERNEL_VERSION = 5.10"
-
-  - name: choose the right kernel release (variable) (bcm43430a1)
-    lineinfile:
-      dest: /usr/local/src/nexmon/patches/bcm43430a1/7_45_41_46/nexmon/Makefile
-      insertafter: "DRIVER_FOLDER_NAME = .*$"
-      line: "KERNEL_RELEASE = 5.10.103-v7+"
-
-  - name: choose the right kernel release (replace string) (bcm43430a1)
-    replace:
-      dest: /usr/local/src/nexmon/patches/bcm43430a1/7_45_41_46/nexmon/Makefile
-      backup: no
-      regexp: "shell uname -r"
-      replace: "KERNEL_RELEASE"
-
-  - name: make firmware patch (bcm43430a1)
-    shell: "source ./setup_env.sh && cd /usr/local/src/nexmon/patches/bcm43430a1/7_45_41_46/nexmon/ && make"
-    args:
-      executable: /bin/bash
-      chdir: /usr/local/src/nexmon/
-
-  # - name: backup original firmware
-  #   shell: "source ./setup_env.sh && cd /usr/local/src/nexmon/patches/bcm43430a1/7_45_41_46/nexmon/ && make backup-firmware"
-  #   args:
-  #     executable: /bin/bash
-  #     chdir: /usr/local/src/nexmon/
-
-  # - name: install new firmware
-  #   shell: "source ./setup_env.sh && cd /usr/local/src/nexmon/patches/bcm43430a1/7_45_41_46/nexmon/ && make install-firmware"
-  #   args:
-  #     executable: /bin/bash
-  #     chdir: /usr/local/src/nexmon/
-
-  - name: install new firmware (bcm43430a1)
-    copy:
-      src: /usr/local/src/nexmon/patches/bcm43430a1/7_45_41_46/nexmon/brcmfmac43430-sdio.bin
-      dest: /lib/firmware/brcm/brcmfmac43430-sdio.bin
-
-  - name: Delete the firmware blob to avoid it crashing
+  # delete blob files that make nexmon sad
+  - name: Delete the firmware blob files to avoid some nexmon crashing
     file:
       state: absent
-      path: /lib/firmware/brcm/brcmfmac43430-sdio.clm_blob
-
-  - name: Delete the RPiZW firmware blob to avoid it crashing
-    file:
-      state: absent
-      path: /lib/firmware/brcm/brcmfmac43430-sdio.raspberrypi,model-zero-w.clm_blob
-
-  - name: Delete the RPi3 firmware blob to avoid it crashing
-    file:
-      state: absent
-      path: /lib/firmware/brcm/brcmfmac43430-sdio.raspberrypi,3-model-b.clm_blob
-
-  - name: choose the right kernel version (bcm43455c0)
-    replace:
-      dest: /usr/local/src/nexmon/patches/bcm43455c0/7_45_206/nexmon/Makefile
-      backup: no
-      regexp: "KERNEL_VERSION = .*$"
-      replace: "KERNEL_VERSION = 5.10"
-
-  - name: choose the right kernel release (variable) (bcm43455c0)
-    lineinfile:
-      dest: /usr/local/src/nexmon/patches/bcm43455c0/7_45_206/nexmon/Makefile
-      insertafter: "DRIVER_FOLDER_NAME = .*$"
-      line: "KERNEL_RELEASE = 5.10.103-v7+"
-
-  - name: choose the right kernel release (replace string) (bcm43455c0)
-    replace:
-      dest: /usr/local/src/nexmon/patches/bcm43455c0/7_45_206/nexmon/Makefile
-      backup: no
-      regexp: "shell uname -r"
-      replace: "KERNEL_RELEASE"
-
-  - name: make firmware patch (bcm43455c0)
-    shell: "source ./setup_env.sh && cd /usr/local/src/nexmon/patches/bcm43455c0/7_45_206/nexmon/ && make"
-    args:
-      executable: /bin/bash
-      chdir: /usr/local/src/nexmon/
-
-  # - name: backup original firmware
-  #   shell: "source ./setup_env.sh && cd /usr/local/src/nexmon/patches/bcm43455c0/7_45_206/nexmon/ && make backup-firmware"
-  #   args:
-  #     executable: /bin/bash
-  #     chdir: /usr/local/src/nexmon/
-
-  # - name: install new firmware
-  #   shell: "source ./setup_env.sh && cd /usr/local/src/nexmon/patches/bcm43455c0/7_45_206/nexmon/ && make install-firmware"
-  #   args:
-  #     executable: /bin/bash
-  #     chdir: /usr/local/src/nexmon/
-
-  - name: install new firmware (bcm43455c0)
-    copy:
-      src: /usr/local/src/nexmon/patches/bcm43455c0/7_45_206/nexmon/brcmfmac43455-sdio.bin
-      dest: /lib/firmware/brcm/brcmfmac43455-sdio.bin
-
-  - name: make nexutil
-    command: chdir=/usr/local/src/nexmon/utilities/nexutil/ make
-
-  - name: make install nexutil
-    command: chdir=/usr/local/src/nexmon/utilities/nexutil/ make install
-
-  # - name: copy modified driver
-  #   shell: "cd /usr/local/src/nexmon/patches/driver/brcmfmac_5.10.y-nexmon/ && cp brcmfmac.ko /lib/modules/5.10.103-v7+/kernel/drivers/net/wireless/broadcom/brcm80211/brcmfmac/brcmfmac.ko && depmod -a"
-  #   args:
-  #     executable: /bin/bash
-
-  - name: copy modified driver (everyone but RPiZW)
-    copy:
-      src: /usr/local/src/nexmon/patches/driver/brcmfmac_5.10.y-nexmon/brcmfmac.ko
-      dest: /lib/modules/5.10.103-v7+/kernel/drivers/net/wireless/broadcom/brcm80211/brcmfmac/brcmfmac.ko
-
-  - name: ensure depmod runs on reboot to load modified driver (brcmfmac)
-    lineinfile:
-      dest: /etc/rc.local
-      line: "/sbin/depmod -a"
+      path: '{{ item }}'
+    loop:
+      - /usr/lib/firmware/brcm/brcmfmac43430-sdio.clm_blob
+      - /usr/lib/firmware/brcm/brcmfmac43430-sdio.raspberrypi,model-zero-w.clm_blob
+      - /usr/lib/firmware/brcm/brcmfmac43430-sdio.raspberrypi,3-model-b.clm_blob
+      - /usr/lib/firmware/brcm/brcmfmac43430b0-sdio.raspberrypi,model-zero-2-w.clm_blob
+      - /usr/lib/firmware/brcm/brcmfmac43436-sdio.clm_blob
+      - /usr/lib/firmware/brcm/brcmfmac43436-sdio.raspberrypi,model-zero-2-w.clm_blob
+      - /usr/lib/firmware/brcm/brcmfmac43455-sdio.clm_blob
+    when: nexmongit.changed
 
   # To shrink the final image, remove the nexmon directory (takes 2.5G of space) post build and installation
   - name: Delete nexmon content & directory
     file:
       state: absent
       path: /usr/local/src/nexmon/
+    when: nexmongit.changed
 
   # Install screenrc configuration
   - name: clone screenrc repository
@@ -628,15 +566,9 @@
       line: "main.custom_plugins = \"/usr/local/share/pwnagotchi/custom-plugins/\""
       insertafter: EOF
 
-#  - name: append commented out parameters for usb_hat_c.py
-#    lineinfile:
-#      dest: /etc/pwnagotchi/config.toml
-#      line: "# main.plugins.ups_hat_c.enabled = true\n# main.plugins.ups_hat_c.label_on = true  # show BAT label or just percentage\n# main.plugins.ups_hat_c.shutdown = 5  # battery percent at which the device will turn off\n# main.plugins.ups_hat_c.bat_x_coord = 140\n# main.plugins.ups_hat_c.bat_y_coord = 0"
-#      insertafter: EOF
-
   - name: Reconfigure auto-update to point to the aluminum-ice repo (bizzarely changing the plugin code directly reverts to the old string)
     replace:
-      dest: /usr/local/lib/python3.7/dist-packages/pwnagotchi/plugins/default/auto-update.py
+      dest: /usr/local/lib/python3.9/dist-packages/pwnagotchi/plugins/default/auto-update.py
       backup: no
       regexp: "evilsocket/pwnagotchi"
       replace: "aluminum-ice/pwnagotchi"
@@ -650,6 +582,13 @@
     file:
       state: absent
       path: /root/.cache
+
+  # Remove packages not needed after nexmon is installed
+  - name: Remove nexmon-related packages
+    apt:
+      name: "{{ packages.apt.nexmon }}"
+      state: absent
+      purge: yes
 
   - name: enable ssh on boot
     file:
@@ -718,10 +657,6 @@
         You learn more about me at https://pwnagotchi.ai/
     when: hostname.changed
 
-  # Ansible's apt module has an "autoclean" option but it only removes packages
-  # that can no longer be downloaded.  Ansible v2.13 added the "clean" option
-  # which actually purges the apt cache, but that's newer than what we can
-  # install from the RasPiOS repos.  Instead, we'll manually clean the cache.
   - name: clean apt cache
     command: "apt-get clean"
     args:
