@@ -10,7 +10,7 @@ The application itself is a deep-RL agent (A2C with LSTM+MLP policy from `stable
 
 ## Build and dev commands
 
-There is a small stdlib `unittest` test suite in `tests/test_phase1_removal.py` (8 negative-space regression tests). Full pytest infrastructure lands in Phase 2. The primary validation path remains building the SD-card image and booting it on a Pi.
+There is a small stdlib `unittest` test suite in `tests/test_phase1_removal.py` (8 regression tests: 7 pass in all environments, `test_agent_imports_cleanly` env-skips in dev without Flask/TF and passes on the Pi image). Full pytest infrastructure lands in Phase 2. The primary validation path remains building the SD-card image and booting it on a Pi.
 
 Versioning: `pwnagotchi/_version.py` holds `__version__`. `setup.py` and the `Makefile` both read it, and the `PWN_VERSION` env var overrides the file contents (the GitHub release workflow `sed`s the file before building).
 
@@ -95,7 +95,7 @@ The web UI runs inside the same process: `Agent.__init__` instantiates `Server(s
 - Python indentation is 4 spaces; everything else is 2 spaces (`.editorconfig`). Makefile uses tabs.
 - Contributions should be `git commit -s` signed-off (DCO); see `CONTRIBUTING.md`. Don't mix refactors with fixes in the same PR.
 - Avoid editing `requirements.txt` directly; it's `pip-compile`d from `requirements.in`. The pins are intentionally old to match what builds on `armhf` via piwheels.
-- The test suite (`tests/test_phase1_removal.py`) uses stdlib `unittest` and can be run with `python -m pytest` or `python -m unittest discover tests/`. Full pytest infrastructure (pytest, responses, pytest-asyncio) lands in Phase 2.
+- The test suite (`tests/test_phase1_removal.py`) uses stdlib `unittest` and can be run with `python -m pytest` or `python -m unittest discover tests/`. 7 of 8 tests pass in all environments; `test_agent_imports_cleanly` env-skips without Flask/TF and passes on the Pi image. Full pytest infrastructure (pytest, responses, pytest-asyncio) lands in Phase 2.
 
 ---
 
@@ -123,9 +123,11 @@ All items complete. See `CHANGELOG.md` and `docs/DESIGN.md` Section 3 for the fu
 
 **What was added/fixed:**
 - `pwnagotchi/wifi.py` — channel math relocated from deleted `mesh/wifi.py`
-- `tests/test_phase1_removal.py` — 8 negative-space regression tests
+- `tests/test_phase1_removal.py` — 8 regression tests (7 pass universally; `test_agent_imports_cleanly` env-skips in dev without Flask/TF, passes on Pi image)
 
 **Breaking plugin API changes:** `on_peer_detected`, `on_peer_lost`, and `internet_available` no longer fire.
+
+**PR housekeeping:** PR #139 was pushed directly to master rather than merged via GitHub's merge button, so it still shows as Open on GitHub. It should be closed manually ("Close pull request" without merging) to keep the PR history clean.
 
 ---
 
