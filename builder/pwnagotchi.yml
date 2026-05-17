@@ -144,7 +144,7 @@
           - libfl-dev
           - g++
           - xxd
-    go_lang:    "go1.22.4"
+    go_lang:    "go1.26.3"
     swap_size:  "512"
 
   environment:
