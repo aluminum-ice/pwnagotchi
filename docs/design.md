@@ -69,7 +69,7 @@ The aluminum-ice fork diverges from evilsocket/pwnagotchi in the build pipeline 
 
 | Layer | evilsocket/pwnagotchi | aluminum-ice/pwnagotchi |
 |---|---|---|
-| OS / base image | Kali-Pi (32-bit) | Raspberry Pi OS Bullseye Lite 32-bit (2025-05-06) |
+| OS / base image | Kali-Pi (32-bit) | Raspberry Pi OS Bullseye Lite 32-bit (2024-03-12) |
 | Target hardware | RPi Zero W (ARMv6) | RPi Zero 2 W (ARMv7l), 3B+, Pi 4 |
 | Original RPi Zero W | Supported | **Dropped** — explicitly unsupported |
 | bettercap | Pre-compiled binary | Compiled from source (Go v1.22.4) |
@@ -222,7 +222,7 @@ These six tests are fast (no I/O, no mocking framework) and run in under a secon
 | Clean Ansible playbook | pwngrid download/install task and pwngrid-peer.service enable entry removed; /etc/pwnagotchi/ mkdir kept | ✅ Done |
 | pwnagotchi.service | After=pwngrid-peer.service ordering directive removed | ✅ Done |
 | defaults.toml | main.plugins.grid block removed | ✅ Done |
-| requirements.in | pycryptodome commented out | ✅ Done |
+| requirements.in | pycryptodome removed; gym pinned to `==0.14.0`; flask-wtf pinned to `~=0.15`; stable-baselines pinned to `==2.10.2`; tensorflow removed | ✅ Done |
 | wifi.py relocated | mesh/wifi.py (channel math) moved to pwnagotchi/wifi.py; 4 import sites updated | ✅ Done (fix for wholesale mesh/ deletion) |
 | tests/test_phase1_removal.py | 8 negative-space tests (6 specified + 2 mesh-relocation guards) | ✅ Done |
 | CHANGELOG.md | Full removal documentation including DNS finding and on_peer_lost | ✅ Done |
@@ -270,7 +270,7 @@ The `.po`/`.pot` locale catalogues contain now-unused strings for these methods 
 
 **Claude Code prompt:**
 
-> *"Read `docs/DESIGN.md` Section 4.1. In `pwnagotchi/voice.py`, first run `grep -r "on_unread_messages\|on_new_peer\|on_lost_peer" pwnagotchi/` to confirm the only definitions are in voice.py and there are no remaining callers. Then delete those three methods. Do not touch any other method in voice.py. Show me the diff before applying it."*
+> *"Read `docs/design.md` Section 4.1. In `pwnagotchi/voice.py`, first run `grep -r "on_unread_messages\|on_new_peer\|on_lost_peer" pwnagotchi/` to confirm the only definitions are in voice.py and there are no remaining callers. Then delete those three methods. Do not touch any other method in voice.py. Show me the diff before applying it."*
 >
 > *"Now run `scripts/language.sh update <lang>` for every language subdirectory under `pwnagotchi/locale/`, then run `make langs`. Show me which strings were marked obsolete. Commit the voice.py deletion and the updated locale files together in a single commit with message: `Phase 1.5: remove orphaned peer/inbox voice methods and stale i18n strings`."*
 
@@ -291,7 +291,7 @@ The `.po`/`.pot` locale catalogues contain now-unused strings for these methods 
 
 **Claude Code prompt:**
 
-> *"Read `docs/DESIGN.md` Section 4.2. Run `grep -rl 'friend_face\|friend_name' pwnagotchi/ui/hw/` to get the list of affected hardware layout files. For each file in that list, remove the `friend_face` and `friend_name` keys from the dict returned by the `layout()` method. Touch nothing else in those files — not the class, not other layout keys, not imports. Show me the full list of files you will change and a representative diff before applying to all of them."*
+> *"Read `docs/design.md` Section 4.2. Run `grep -rl 'friend_face\|friend_name' pwnagotchi/ui/hw/` to get the list of affected hardware layout files. For each file in that list, remove the `friend_face` and `friend_name` keys from the dict returned by the `layout()` method. Touch nothing else in those files — not the class, not other layout keys, not imports. Show me the full list of files you will change and a representative diff before applying to all of them."*
 >
 > *"After applying, run `grep -r 'friend_face\|friend_name' pwnagotchi/ui/hw/` and confirm it returns nothing. Then commit with message: `Phase 1.5: remove dead friend_face/friend_name layout entries from ui/hw modules`."*
 
@@ -336,7 +336,7 @@ Additionally, once the `if not self._has_support_network_for(...)` conditions ar
 
 **Claude Code prompt:**
 
-> *"Read `docs/DESIGN.md` Section 4.3 carefully — there is a defect correction here that overrides earlier versions of this sub-task.*
+> *"Read `docs/design.md` Section 4.3 carefully — there is a defect correction here that overrides earlier versions of this sub-task.*
 >
 > *Step 1: Run `grep -rn 'set_grateful\|in_good_mood\|_has_support_network_for\|bond_encounters_factor' pwnagotchi/automata.py pwnagotchi/defaults.toml pwnagotchi/voice.py pwnagotchi/ui/view.py pwnagotchi/ai/epoch.py` and show me the full output.*
 >
@@ -368,7 +368,7 @@ Add guards to `tests/test_phase1_removal.py` for the three items above, so they 
 
 **Claude Code prompt:**
 
-> *"Read `docs/DESIGN.md` Section 4.4. Add three new test methods to `tests/test_phase1_removal.py` using stdlib `unittest` only:*
+> *"Read `docs/design.md` Section 4.4. Add three new test methods to `tests/test_phase1_removal.py` using stdlib `unittest` only:*
 >
 > *1. `test_voice_peer_methods_removed` — import `pwnagotchi.voice`; assert that `Voice` has no attributes named `on_unread_messages`, `on_new_peer`, or `on_lost_peer`.*
 >
@@ -450,9 +450,9 @@ The HCL2 template preserves all behaviour of the JSON original. Key differences:
 - **`variable` blocks** for `pwn_version` (no default — always required, supplied by Makefile), `pwn_hostname` (default: `"pwnagotchi"`), `iso_url`, `iso_checksum`, and `target_image_size`. All have descriptions.
 - **`source "arm-image"` block** with `qemu_args = ["-cpu", "arm1176"]` — see QEMU constraint note in Section 5.1.
 - **`build` block** with the same five provisioners as the JSON, in the same order.
-- **`iso_checksum`** prefixed with `"sha256:"` — the algorithm prefix that Packer requires for unambiguous checksum validation. The current JSON already uses the `sha256:` prefix correctly (`sha256:44561a0479c11625ccc7e2cbe517027b1d726251cd7f8d068be370106b474943` for the 2025-05-06 Bullseye image).
+- **`iso_checksum`** prefixed with `"sha256:"` — the algorithm prefix that Packer requires for unambiguous checksum validation. The current JSON uses `sha256:51faf3c91a940b26ad344965b5a7c4b5b389cbccfd796040f4fb7c0dcf4dd860` for the 2024-03-12 Bullseye image. Note: the 2025-05-06 image was tried but caused partition-enumeration failures with arm-image plugin v0.2.7 due to GPT vs MBR layout differences; reverted to 2024-03-12.
 
-> **Checksum verification:** Before deploying, verify the checksum against the official Raspberry Pi downloads page or by running `sha256sum 2025-05-06-raspios-bullseye-armhf-lite.img.xz` on a locally downloaded copy. The value in the template must match exactly.
+> **Checksum verification:** Before deploying, verify the checksum against the official Raspberry Pi downloads page or by running `sha256sum 2024-03-12-raspios-bullseye-armhf-lite.img.xz` on a locally downloaded copy. The value in the template must match exactly.
 
 ---
 
@@ -490,7 +490,7 @@ cd builder && sudo $(PACKER) init . && sudo $(UNSHARE) $(PACKER) build \
 
 Phase 1.6 is mechanical and low-risk. A single Claude Code session handles all three steps.
 
-> *"Read `docs/DESIGN.md` Section 5 (Phase 1.6). The scope is exactly three things: (1) add `builder/pwnagotchi.pkr.hcl` using the content in the outputs folder, (2) update two lines in `Makefile` as specified in Section 5.4, (3) delete `builder/pwnagotchi.json`. Do not touch any other file. Show me the Makefile diff before applying it. After all three changes, run `packer validate -var pwn_version=test .` from the `builder/` directory to confirm the HCL template parses correctly. Commit all three changes together with message: `Phase 1.6: migrate Packer template from JSON to HCL2`."*
+> *"Read `docs/design.md` Section 5 (Phase 1.6). The scope is exactly three things: (1) add `builder/pwnagotchi.pkr.hcl` using the content in the outputs folder, (2) update two lines in `Makefile` as specified in Section 5.4, (3) delete `builder/pwnagotchi.json`. Do not touch any other file. Show me the Makefile diff before applying it. After all three changes, run `packer validate -var pwn_version=test .` from the `builder/` directory to confirm the HCL template parses correctly. Commit all three changes together with message: `Phase 1.6: migrate Packer template from JSON to HCL2`."*
 
 **What to watch for:**
 - `packer init .` must be run (or `packer validate` will fail with a missing plugin error) before `packer validate`. If `packer` is not installed in the dev environment, skip validation and rely on the GitHub Action build as the acceptance gate.
@@ -519,7 +519,7 @@ All phases are intended to be executed using Claude Code. This section captures 
 
 **One phase per Claude Code session (or sub-task).** Do not span multiple phases in one session. Each phase has a defined entry state, exit state, and verification step.
 
-**Start every session by pointing Claude Code at this document.** Begin with: *"Read `CLAUDE.md` and `docs/DESIGN.md`. We are starting Phase [N], Section [X]. Do not make changes outside that scope."*
+**Start every session by pointing Claude Code at this document.** Begin with: *"Read `CLAUDE.md` and `docs/design.md`. We are starting Phase [N], Section [X]. Do not make changes outside that scope."*
 
 **Verify before moving on.** Do not start Phase 1.5 until Phase 1 is merged. Do not start Phase 1.6 until Phase 1.5 is tagged. Do not start Phase 2 until Phase 1.6 build is verified. Do not start Phase 3 until Phase 2's pytest baseline passes.
 
@@ -537,7 +537,7 @@ All phases are intended to be executed using Claude Code. This section captures 
 
 **Orientation prompt to open the session:**
 
-> *"Read `CLAUDE.md` and `docs/DESIGN.md` Section 4 (Phase 1.5). Phase 1 is complete and merged. We are now doing Phase 1.5: a dead code sweep of three specific items left behind by Phase 1. The scope is strictly: (A) orphaned voice.py methods and i18n strings, (B) dead friend_face/friend_name keys in ui/hw/ layout modules, and (C) unreachable grateful mood logic in automata.py. Do not touch requirements.in, setup.py, the Ansible playbook, the AI stack, or any other file not named in Section 4. Confirm you understand the scope before we begin."*
+> *"Read `CLAUDE.md` and `docs/design.md` Section 4 (Phase 1.5). Phase 1 is complete and merged. We are now doing Phase 1.5: a dead code sweep of three specific items left behind by Phase 1. The scope is strictly: (A) orphaned voice.py methods and i18n strings, (B) dead friend_face/friend_name keys in ui/hw/ layout modules, and (C) unreachable grateful mood logic in automata.py. Do not touch requirements.in, setup.py, the Ansible playbook, the AI stack, or any other file not named in Section 4. Confirm you understand the scope before we begin."*
 
 **Then run sub-tasks A through D using the verbatim prompts in Sections 4.1–4.4.**
 
@@ -552,7 +552,7 @@ All phases are intended to be executed using Claude Code. This section captures 
 **Session goal:** Migrate the Packer template from JSON to HCL2 and verify the image builds. Single session, one commit. The verbatim prompt is in Section 5.5.
 
 **Orientation:**
-> *"Read `CLAUDE.md` and `docs/DESIGN.md` Section 5. We are doing Phase 1.6: migrate the Packer build template from JSON to HCL2. Scope is exactly: add `builder/pwnagotchi.pkr.hcl`, update two lines in `Makefile`, delete `builder/pwnagotchi.json`. Do not touch any other file."*
+> *"Read `CLAUDE.md` and `docs/design.md` Section 5. We are doing Phase 1.6: migrate the Packer build template from JSON to HCL2. Scope is exactly: add `builder/pwnagotchi.pkr.hcl`, update two lines in `Makefile`, delete `builder/pwnagotchi.json`. Do not touch any other file."*
 
 **What to watch for:**
 - `packer init .` must succeed before `packer validate`. If packer is unavailable in the dev environment, skip local validation and use the GitHub Actions build as the gate.
@@ -568,7 +568,7 @@ All phases are intended to be executed using Claude Code. This section captures 
 1. **Sub-session A — Base image and pyproject.toml:** *"Update the Ansible base image URL to Raspberry Pi OS Bookworm Lite armhf. Then migrate `setup.py` to `pyproject.toml` using `hatchling`. Preserve all entry points and data file installs. Do not touch `requirements.in` yet."*
 2. **Sub-session B — Flask upgrade:** *"Upgrade Flask and its dependencies as specified in Section 7.4.1 of `DESIGN.md`. Audit `webcfg` plugin and any other plugin that uses `render_template_string` or `request.form` for Flask 3.x compatibility. Show me every change to plugin files before applying."*
 3. **Sub-session C — Python 3.11 compat:** *"Search the codebase for `datetime.utcnow()`, `pkg_resources` usage, and `collections` imports (not `collections.abc`). Fix each as specified in Section 6.2. Run `python -m py_compile` on every `.py` file under `pwnagotchi/`."*
-4. **Sub-session D — pip-compile:** *"Update `requirements.in` as specified: remove pycryptodome (already commented), update Flask stack versions. Then run `pip-compile --resolver=backtracking --strip-extras --prefer-binary` against Python 3.11 and commit the output as `requirements.txt`."*
+4. **Sub-session D — pip-compile:** *"Update `requirements.in` as specified: pycryptodome is already removed; update Flask stack versions. Then run `pip-compile --resolver=backtracking --strip-extras --prefer-binary` against Python 3.11 and commit the output as `requirements.txt`."*
 5. **Sub-session E — AI guard and tests:** *"Harden the AI fallback guard as described in Section 7.4.2. Then write `tests/test_config.py`, `tests/test_bettercap.py`, `tests/test_plugins.py`, and `tests/test_ai_guard.py` covering the 17 tests specified in Section 6.5."*
 
 **What to watch for:**
@@ -937,7 +937,7 @@ TF1.x stable-baselines 2.x model files (`.pkl`) cannot be loaded by stable-basel
 | 9 | `defaults.toml`: no `[main.plugins.grid]` block | `grep -r "plugins.grid"` returns nothing |
 | 10 | `builder/pwnagotchi.yml`: no pwngrid tasks | `grep -i "pwngrid" builder/` returns nothing |
 | 11 | `builder/pwnagotchi.yml`: `/etc/pwnagotchi/` mkdir task still present | `grep "pwnagotchi" builder/pwnagotchi.yml` shows mkdir task |
-| 12 | `pycryptodome` commented out in `requirements.in` | Not present in pip-compiled output (Phase 2 verification) |
+| 12 | `pycryptodome` removed from `requirements.in`; `gym==0.14.0` pinned exactly | `grep "pycryptodome\|gym" requirements.in` shows pycryptodome absent, gym pinned to `==0.14.0` |
 | 13 | 8 tests in `tests/test_phase1_removal.py`: 7 pass, `test_agent_imports_cleanly` env-skips in dev (passes on Pi image) | `python -m pytest tests/test_phase1_removal.py -v` |
 | 14 | Image boots without error | `journalctl -u pwnagotchi` shows no errors referencing pwngrid, grid, or identity |
 | 15 | Display renders correctly | No inbox/peer counter UI element; face renders normally |
