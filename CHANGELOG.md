@@ -4,7 +4,92 @@ All notable changes to this fork (`aluminum-ice/pwnagotchi`) are documented
 in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project aims to follow semantic versioning.
 
-## [Unreleased] — targeting v1.9.0 (Phase 1: pwngrid & peer-advertising removal)
+## [Unreleased] — targeting v1.9.1 (Phase 1.5: dead code sweep)
+
+Removal of dead code left behind by Phase 1. No dependency, feature, or
+test-infrastructure changes beyond regression guards. This phase closes the
+"Known follow-ups" the Phase 1 entry deferred (orphaned `voice.py` methods,
+`friend_face` / `friend_name` layout entries, the unreachable grateful
+mood). It is **not yet complete**: the i18n catalogue regeneration
+(sub-task A) requires the builder/Pi environment and has not been run — see
+**Known follow-ups** below.
+
+### Removed
+
+- `pwnagotchi/voice.py`: the orphaned `on_new_peer`, `on_lost_peer`, and
+  `on_unread_messages` methods (sub-task A). Their `View` callers were
+  deleted in Phase 1; nothing referenced them. The matching `.po` / `.pot`
+  catalogue entries are **not yet pruned** — see **Known follow-ups**.
+- `pwnagotchi/ui/hw/*.py` (23 modules): the dead `friend_face` /
+  `friend_name` keys from every display's `layout()` dict (sub-task B).
+  `View` stopped reading them in Phase 1. Only those two keys were removed;
+  no other layout entry, class, or import was touched. The modules with two
+  colour-branch layouts (`waveshare1`, `waveshare2`, `waveshare213inb_v4`)
+  had both occurrences removed.
+- `pwnagotchi/automata.py`: the unreachable grateful-mood logic
+  (sub-task C) — `_has_support_network_for()` (a constant `False` since
+  Phase 1 removed peers), `in_good_mood()`, and `set_grateful()`, plus the
+  always-true `if not self._has_support_network_for(...)` guard and the
+  dead `else: self.set_grateful()` branch in `set_lonely` / `set_bored` /
+  `set_sad` / `set_angry`, and the dead `elif` in `next_epoch()`. The
+  mood-setting behaviour itself is unchanged. The now-unused local `factor`
+  in `set_bored` / `set_sad` was removed; `set_angry`'s `factor` parameter
+  is retained (callers pass it positionally).
+
+### Changed
+
+- `pwnagotchi/ui/view.py`: the one live external caller of the deleted
+  `in_good_mood()` (the wait / look-around face selection) was changed to
+  `good_mood = False`. This is behaviour-preserving — `in_good_mood()`
+  already always returned `False`, so the non-"happy" face variants were
+  already always selected. The original sub-task C scope listed only
+  `automata.py` / `defaults.toml`; the live `view.py` caller was a defect
+  in the sub-task definition, corrected before implementation.
+
+### Added
+
+- `tests/test_phase1_removal.py`: three stdlib-`unittest` regression
+  guards (sub-task D) so the swept surface cannot silently return —
+  `test_voice_peer_methods_removed`,
+  `test_no_friend_layout_keys_in_hw_modules` (instantiates every hw module
+  and asserts its `layout()` dict lacks the friend keys on both colour
+  branches; installs a minimal in-process PIL stub when PIL is absent
+  off-Pi, then strips it so it cannot leak into other tests), and
+  `test_grateful_mood_removed`. The file now holds 11 tests.
+
+### Kept (explicitly)
+
+- `personality.bond_encounters_factor` in `defaults.toml` is **retained**.
+  The original sub-task C step said to remove it "if only referenced by the
+  deleted `_has_support_network_for()`" — but `pwnagotchi/ai/epoch.py`
+  still consumes it (`Epoch.observe()`), and the AI stack is out of Phase
+  1.5 scope. Removing it would `KeyError` the AI stack. The corresponding
+  acceptance-checklist line ("returns nothing (if removed)") is therefore
+  N/A, not an unmet gate.
+
+### Known follow-ups
+
+- **i18n catalogues not yet regenerated (sub-task A — blocks the
+  `make langs` acceptance item).** Deleting the three `voice.py` methods
+  leaves their `msgid`s — and the pre-Phase-1 `"Met 1 peer"` /
+  `"Met {num} peers"` strings — stale in `pwnagotchi/locale/**/voice.po`
+  and `voice.pot`. Regenerating them needs the GNU gettext toolchain
+  (`xgettext` / `msgmerge` / `msgfmt`), which is unavailable in the
+  web/CI container (apt mirrors network-blocked) and must be run in the
+  builder or on-Pi environment: `scripts/language.sh update <lang>` for
+  every locale, then `make langs`. Until then the catalogues compile dead
+  strings, but the daemon is unaffected.
+- **pytest run.** `python -m pytest` is unavailable until Phase 2 (pytest
+  is intentionally not yet a dependency). `python -m unittest
+  tests.test_phase1_removal` runs all 11 tests with no failures; the lone
+  skip is the pre-existing, environmental `test_agent_imports_cleanly`
+  (no `flask` on a dev host). On the builder/Pi image (flask + TF present)
+  it is literally "11 passed".
+- On-Pi runtime acceptance (image boots, display renders without the
+  friend element, moods still set correctly) is verifiable only by booting
+  a built image, not in CI.
+
+## [1.9.0] — Phase 1: pwngrid & peer-advertising removal
 
 This release removes all dependency on the `pwngrid` binary, the
 `api.pwnagotchi.ai` cloud service, and the local dot11 peer-advertising
