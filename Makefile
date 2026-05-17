@@ -1,14 +1,10 @@
 PACKER_VERSION := 1.8.3
-
 PWN_HOSTNAME := pwnagotchi
-
 # PWN_VERSION := $(shell cut -d"'" -f2 < pwnagotchi/_version.py)
 PWN_VERSION := $(or ${PWN_VERSION},$(shell cut -d"'" -f2 < pwnagotchi/_version.py))
-
 PWN_RELEASE := pwnagotchi-raspios-lite-$(PWN_VERSION)
 
 MACHINE_TYPE := $(shell uname -m)
-
 ifneq (,$(filter x86_64,$(MACHINE_TYPE)))
 GOARCH := amd64
 else ifneq (,$(filter i686,$(MACHINE_TYPE)))
@@ -40,9 +36,7 @@ langs:
 	done
 
 PACKER := /tmp/pwnagotchi/packer
-
 PACKER_URL := https://releases.hashicorp.com/packer/$(PACKER_VERSION)/packer_$(PACKER_VERSION)_linux_$(GOARCH).zip
-
 $(PACKER):
 	mkdir -p $(@D)
 	curl -L "$(PACKER_URL)" -o $(PACKER).zip
@@ -51,20 +45,16 @@ $(PACKER):
 	chmod +x $@
 
 SDIST := dist/pwnagotchi-$(PWN_VERSION).tar.gz
-
 $(SDIST): setup.py pwnagotchi
 	python3 setup.py sdist
 
 # Building the image requires packer, but don't rebuild the image just because packer updated.
 $(PWN_RELEASE).img: | $(PACKER)
 
-# CHANGED (Phase 2): reference pwnagotchi.pkr.hcl instead of pwnagotchi.json
-$(PWN_RELEASE).img: $(SDIST) builder/pwnagotchi.pkr.hcl builder/pwnagotchi.yml $(shell find builder/data -type f)
+# If the packer or ansible files are updated, rebuild the image.
+$(PWN_RELEASE).img: $(SDIST) builder/pwnagotchi.json builder/pwnagotchi.yml $(shell find builder/data -type f)
 	sudo $(PACKER) plugins install github.com/solo-io/arm-image 0.2.7
-	cd builder && sudo $(UNSHARE) $(PACKER) build \
-		-var "pwn_hostname=$(PWN_HOSTNAME)" \
-		-var "pwn_version=$(PWN_VERSION)" \
-		pwnagotchi.json
+	cd builder && sudo $(UNSHARE) $(PACKER) build -var "pwn_hostname=$(PWN_HOSTNAME)" -var "pwn_version=$(PWN_VERSION)" pwnagotchi.json
 	sudo chown -R $$USER:$$USER builder/output-pwnagotchi
 	mv builder/output-pwnagotchi/image $@
 	pishrink.sh $@
@@ -90,3 +80,4 @@ clean:
 	- rm -f $(PACKER)
 	- rm -f $(PWN_RELEASE).*
 	- sudo rm -rf builder/output-pwnagotchi builder/packer_cache
+
