@@ -399,7 +399,18 @@
     when: golang.changed
 
   - name: Install bettercap (from source)
-    shell: "export GOPATH=$HOME/go && export PATH=/usr/local/go/bin:$PATH:$GOPATH/bin && go env -w GO111MODULE=on && go get github.com/bettercap/bettercap && cd $GOPATH/src/github.com/bettercap/bettercap && make build && make install"
+    shell: |
+      export GOPATH=$HOME/go
+      export PATH=/usr/local/go/bin:$PATH:$GOPATH/bin
+      # Clone bettercap into a proper module directory and build from source.
+      # 'go get' outside a module was removed in Go 1.18; we clone and build
+      # directly instead, which is the correct approach for Go 1.18+.
+      mkdir -p $GOPATH/src/github.com/bettercap
+      cd $GOPATH/src/github.com/bettercap
+      git clone https://github.com/bettercap/bettercap.git
+      cd bettercap
+      make build
+      make install
     args:
       executable: /bin/bash
     register: bettercap
