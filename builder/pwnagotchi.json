@@ -27,6 +27,13 @@
       "destination": "/usr/local/src/pwnagotchi/"
     },
     {
+      "type": "file",
+      "sources": [
+        "../requirements.in"
+      ],
+      "destination": "/usr/local/src/pwnagotchi/"
+    },
+    {
       "type": "shell",
       "inline": [
         "apt-get -y --allow-releaseinfo-change update",
