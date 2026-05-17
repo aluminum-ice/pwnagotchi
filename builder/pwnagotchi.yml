@@ -340,6 +340,8 @@
   # ============================================================
   - name: Regenerate requirements.txt from requirements.in (armhf pip-compile)
     shell: |
+      cd /usr/local/src/pwnagotchi
+      tar --strip-components=1 -xzf pwnagotchi-{{ pwnagotchi.version }}.tar.gz pwnagotchi-{{ pwnagotchi.version }}/requirements.in
       pip-compile \
         --resolver=backtracking \
         --strip-extras \
