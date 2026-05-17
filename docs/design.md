@@ -18,13 +18,14 @@
 2. [Current State Analysis](#2-current-state-analysis)
 3. [Phase 1 — pwngrid & Peer-Advertising Removal](#3-phase-1--pwngrid--peer-advertising-removal)
 4. [Phase 1.5 — Dead Code Sweep](#4-phase-15--dead-code-sweep)
-5. [Claude Code Implementation Guidance](#5-claude-code-implementation-guidance)
-6. [Phase 2 — 32-bit Stabilisation](#6-phase-2--32-bit-stabilisation)
-7. [Phase 3 — 64-bit Migration](#7-phase-3--64-bit-migration)
-8. [What is Explicitly Out of Scope](#8-what-is-explicitly-out-of-scope)
-9. [Risk Register](#9-risk-register)
-10. [Implementation Sequence](#10-implementation-sequence)
-11. [Appendix](#11-appendix)
+5. [Phase 1.6 — Packer HCL2 Migration](#5-phase-16--packer-hcl2-migration)
+6. [Claude Code Implementation Guidance](#6-claude-code-implementation-guidance)
+7. [Phase 2 — 32-bit Stabilisation](#7-phase-2--32-bit-stabilisation)
+8. [Phase 3 — 64-bit Migration](#8-phase-3--64-bit-migration)
+9. [What is Explicitly Out of Scope](#9-what-is-explicitly-out-of-scope)
+10. [Risk Register](#10-risk-register)
+11. [Implementation Sequence](#11-implementation-sequence)
+12. [Appendix](#12-appendix)
 
 ---
 
@@ -38,6 +39,7 @@ The four phases are:
 
 - **Phase 1 — pwngrid & Peer-Advertising Removal:** Remove the pwngrid binary, the pwngrid-peer systemd service, the identity/grid Python modules, the grid default plugin, `pwnagotchi/mesh/` (the dot11 peer-advertising layer), the `on_peer_detected` plugin callback, and all related Ansible tasks and config.toml keys. *(Complete — merged as PR #139.)*
 - **Phase 1.5 — Dead Code Sweep:** Remove dead code left behind by Phase 1 but intentionally deferred from it: orphaned `voice.py` methods and i18n strings, dead `friend_face`/`friend_name` layout entries in ~30 `ui/hw/` modules, and the now-unreachable `set_grateful`/`_has_support_network_for` mood logic in `automata.py`.
+- **Phase 1.6 — Packer HCL2 Migration:** Migrate the Packer image build template from the legacy JSON format (`builder/pwnagotchi.json`) to the modern HCL2 format (`builder/pwnagotchi.pkr.hcl`). Verify the image builds successfully before proceeding to Phase 2.
 - **Phase 2 — 32-bit Stabilisation:** Upgrade base image to Bookworm 32-bit, Python 3.11, Flask 3.x, pyproject.toml, test infrastructure, NetworkManager networking.
 - **Phase 3 — 64-bit Migration:** Migrate to Bookworm 64-bit, replace TF1/SB2 with PyTorch/SB3, aarch64 image.
 
@@ -67,7 +69,7 @@ The aluminum-ice fork diverges from evilsocket/pwnagotchi in the build pipeline 
 
 | Layer | evilsocket/pwnagotchi | aluminum-ice/pwnagotchi |
 |---|---|---|
-| OS / base image | Kali-Pi (32-bit) | Raspberry Pi OS Bullseye Lite 32-bit (2024-03-12) |
+| OS / base image | Kali-Pi (32-bit) | Raspberry Pi OS Bullseye Lite 32-bit (2025-05-06) |
 | Target hardware | RPi Zero W (ARMv6) | RPi Zero 2 W (ARMv7l), 3B+, Pi 4 |
 | Original RPi Zero W | Supported | **Dropped** — explicitly unsupported |
 | bettercap | Pre-compiled binary | Compiled from source (Go v1.22.4) |
@@ -403,27 +405,133 @@ Add guards to `tests/test_phase1_removal.py` for the three items above, so they 
 
 ---
 
-## 5. Claude Code Implementation Guidance
+## 5. Phase 1.6 — Packer HCL2 Migration
+
+**Objective:** Migrate the Packer image build template from the legacy JSON format (`builder/pwnagotchi.json`) to the modern HCL2 format (`builder/pwnagotchi.pkr.hcl`). Verify the image builds cleanly before any Phase 2 Python changes land. This phase touches only the build pipeline — no Python code, no dependencies, no Ansible changes.
+
+**Entry condition:** Phase 1.5 tagged (v1.9.1).
+
+**Why a separate phase before Phase 2:** The Packer template, Makefile, and Ansible playbook together form the image build pipeline. Phase 2 changes the Ansible base image URL and adds pip-compile. If the pipeline is broken before Phase 2 starts, it becomes impossible to isolate whether a build failure is a Phase 2 regression or a pre-existing pipeline problem. Validating the HCL2 migration in isolation — with an unchanged Ansible playbook and the current Bullseye base image — gives a clean baseline.
+
+**Scope boundary:** Touch only `builder/pwnagotchi.json` (delete), `builder/pwnagotchi.pkr.hcl` (add), and `Makefile` (update two lines). Do not change `builder/pwnagotchi.yml`, `requirements.in`, `setup.py`, or any Python source file.
+
+---
+
+### 5.1 Background: JSON vs HCL2
+
+The current `pwnagotchi.json` uses Packer's legacy JSON template format. Issues with the JSON format that HCL2 resolves:
+
+| Issue | JSON | HCL2 |
+|---|---|---|
+| Comments | Not supported — rationale for non-obvious values cannot be documented inline | Supported — `#` and `//` comments are valid |
+| Variable declarations | `{{user "var"}}` template strings with no type or description | Typed `variable` blocks with `description`, `type`, and `default` |
+| Plugin version pinning | External `packer plugins install` command in Makefile | `required_plugins` block inside the template; `packer init` handles installation |
+| Validation | Errors only at parse or runtime | `packer validate` catches type errors and undefined variables at write time |
+
+**Known QEMU constraint (retained from JSON):** The arm-image plugin uses `qemu-arm-static` (user-mode emulation), not `qemu-system-arm` (full system emulation). User-mode QEMU does not support CPU model selection. `qemu_args = ["-cpu", "cortex-a53"]` fails with *"unable to find CPU model"*. The value `arm1176` is retained as the working value for this plugin. Architecture accuracy during the build is provided by `ARCHFLAGS: "-arch armv7l"` in the Ansible playbook, not by the QEMU CPU flag.
+
+---
+
+### 5.2 Files Changed
+
+| File | Action | Description |
+|---|---|---|
+| `builder/pwnagotchi.json` | **Delete** | Replaced by pwnagotchi.pkr.hcl |
+| `builder/pwnagotchi.pkr.hcl` | **Add** | HCL2 template; same logic as the JSON, with comments and typed variables |
+| `Makefile` | **Update 2 lines** | Dependency reference and build command |
+
+---
+
+### 5.3 pwnagotchi.pkr.hcl
+
+The HCL2 template preserves all behaviour of the JSON original. Key differences:
+
+- **`packer` block** declares `required_plugins` with a pinned `arm-image ~> 0.2` version. `packer init` downloads the plugin; the explicit `packer plugins install` in the Makefile is removed.
+- **`variable` blocks** for `pwn_version` (no default — always required, supplied by Makefile), `pwn_hostname` (default: `"pwnagotchi"`), `iso_url`, `iso_checksum`, and `target_image_size`. All have descriptions.
+- **`source "arm-image"` block** with `qemu_args = ["-cpu", "arm1176"]` — see QEMU constraint note in Section 5.1.
+- **`build` block** with the same five provisioners as the JSON, in the same order.
+- **`iso_checksum`** prefixed with `"sha256:"` — the algorithm prefix that Packer requires for unambiguous checksum validation. The current JSON already uses the `sha256:` prefix correctly (`sha256:44561a0479c11625ccc7e2cbe517027b1d726251cd7f8d068be370106b474943` for the 2025-05-06 Bullseye image).
+
+> **Checksum verification:** Before deploying, verify the checksum against the official Raspberry Pi downloads page or by running `sha256sum 2025-05-06-raspios-bullseye-armhf-lite.img.xz` on a locally downloaded copy. The value in the template must match exactly.
+
+---
+
+### 5.4 Makefile Changes
+
+Two changes only. Everything else in the Makefile is unchanged.
+
+**Change 1 — dependency line:** The `.img` target currently lists `builder/pwnagotchi.json` as a dependency so make rebuilds the image when the template changes. Update to reference the new filename:
+
+```makefile
+# Before:
+$(PWN_RELEASE).img: $(SDIST) builder/pwnagotchi.json builder/pwnagotchi.yml $(shell find builder/data -type f)
+
+# After:
+$(PWN_RELEASE).img: $(SDIST) builder/pwnagotchi.pkr.hcl builder/pwnagotchi.yml $(shell find builder/data -type f)
+```
+
+**Change 2 — build command:** Replace the explicit plugin install and JSON build invocation with `packer init` + HCL2 build. The trailing `.` tells Packer to use all `*.pkr.hcl` files in the `builder/` directory:
+
+```makefile
+# Before:
+sudo $(PACKER) plugins install github.com/solo-io/arm-image 0.2.7
+cd builder && sudo $(UNSHARE) $(PACKER) build -var "pwn_hostname=$(PWN_HOSTNAME)" -var "pwn_version=$(PWN_VERSION)" pwnagotchi.json
+
+# After:
+cd builder && sudo $(PACKER) init . && sudo $(UNSHARE) $(PACKER) build \
+    -var "pwn_hostname=$(PWN_HOSTNAME)" \
+    -var "pwn_version=$(PWN_VERSION)" \
+    .
+```
+
+---
+
+### 5.5 Claude Code Prompt
+
+Phase 1.6 is mechanical and low-risk. A single Claude Code session handles all three steps.
+
+> *"Read `docs/DESIGN.md` Section 5 (Phase 1.6). The scope is exactly three things: (1) add `builder/pwnagotchi.pkr.hcl` using the content in the outputs folder, (2) update two lines in `Makefile` as specified in Section 5.4, (3) delete `builder/pwnagotchi.json`. Do not touch any other file. Show me the Makefile diff before applying it. After all three changes, run `packer validate -var pwn_version=test .` from the `builder/` directory to confirm the HCL template parses correctly. Commit all three changes together with message: `Phase 1.6: migrate Packer template from JSON to HCL2`."*
+
+**What to watch for:**
+- `packer init .` must be run (or `packer validate` will fail with a missing plugin error) before `packer validate`. If `packer` is not installed in the dev environment, skip validation and rely on the GitHub Action build as the acceptance gate.
+- Do not delete `pwnagotchi.json` until the HCL file is confirmed to parse correctly — they can coexist temporarily during validation but Packer will attempt to build both if both are present, so the JSON must be removed before the actual build runs.
+- The `pwn_version` variable has no default. `packer validate` requires `-var pwn_version=<any string>` or it will error on the missing required variable. This is correct behaviour — it is always supplied by the Makefile at build time.
+
+---
+
+### 5.6 Phase 1.6 Deliverables
+
+| Deliverable | Description | Acceptance |
+|---|---|---|
+| `builder/pwnagotchi.pkr.hcl` added | HCL2 Packer template | `packer validate -var pwn_version=test .` exits 0 |
+| `builder/pwnagotchi.json` deleted | Legacy JSON template removed | File absent from repo |
+| `Makefile` updated | Dependency reference and build command | Two lines changed, all other lines unchanged |
+| Image build passes | Full GitHub Actions image build completes | `.img` file produced; no packer or Ansible errors |
+| `CHANGELOG.md` updated | Phase 1.6 entry | Documents the migration and QEMU constraint |
+
+---
+
+## 6. Claude Code Implementation Guidance
 
 All phases are intended to be executed using Claude Code. This section captures practical guidance for structuring those sessions.
 
-### 5.1 General Principles
+### 6.1 General Principles
 
 **One phase per Claude Code session (or sub-task).** Do not span multiple phases in one session. Each phase has a defined entry state, exit state, and verification step.
 
 **Start every session by pointing Claude Code at this document.** Begin with: *"Read `CLAUDE.md` and `docs/DESIGN.md`. We are starting Phase [N], Section [X]. Do not make changes outside that scope."*
 
-**Verify before moving on.** Do not start Phase 1.5 until Phase 1 is merged. Do not start Phase 2 until Phase 1.5 is tagged. Do not start Phase 3 until Phase 2's pytest baseline passes.
+**Verify before moving on.** Do not start Phase 1.5 until Phase 1 is merged. Do not start Phase 1.6 until Phase 1.5 is tagged. Do not start Phase 2 until Phase 1.6 build is verified. Do not start Phase 3 until Phase 2's pytest baseline passes.
 
 **Commit after each numbered step**, not at the end of a session. One step = one commit. This makes the git history reviewable and any single step reversible.
 
 **Scope discipline.** If Claude Code finds something outside the current phase's scope that needs fixing, it should note it but not fix it. Add a `# TODO(phase-N):` comment and move on.
 
-### 5.2 Phase 1: Claude Code Session Plan
+### 6.2 Phase 1: Claude Code Session Plan
 
 *Phase 1 is complete. See PR #139 and Section 3 for the full record.*
 
-### 5.3 Phase 1.5: Claude Code Session Plan
+### 6.3 Phase 1.5: Claude Code Session Plan
 
 **Session goal:** Remove the three categories of dead code left by Phase 1. Four tightly-scoped sub-tasks, each its own commit. The prompts are specified verbatim in Sections 4.1–4.4 — use them exactly as written.
 
@@ -439,32 +547,44 @@ All phases are intended to be executed using Claude Code. This section captures 
 - Sub-task C: `bond_encounters_factor` must **not** be removed — it is consumed by `pwnagotchi/ai/epoch.py:87`. The design doc Section 4.3 Step 6 explicitly states this. The acceptance checklist verifies it remains in both files.
 - Sub-task C: The scope-confirmation grep in Step 1 must include `pwnagotchi/ui/view.py` and `pwnagotchi/ai/epoch.py` — both have live references that the original design doc missed. The corrected prompt in Section 4.3 covers these.
 
-### 5.4 Phase 2: Claude Code Session Plan
+### 6.4 Phase 1.6: Claude Code Session Plan
+
+**Session goal:** Migrate the Packer template from JSON to HCL2 and verify the image builds. Single session, one commit. The verbatim prompt is in Section 5.5.
+
+**Orientation:**
+> *"Read `CLAUDE.md` and `docs/DESIGN.md` Section 5. We are doing Phase 1.6: migrate the Packer build template from JSON to HCL2. Scope is exactly: add `builder/pwnagotchi.pkr.hcl`, update two lines in `Makefile`, delete `builder/pwnagotchi.json`. Do not touch any other file."*
+
+**What to watch for:**
+- `packer init .` must succeed before `packer validate`. If packer is unavailable in the dev environment, skip local validation and use the GitHub Actions build as the gate.
+- Both `pwnagotchi.json` and `pwnagotchi.pkr.hcl` can coexist briefly during validation, but `pwnagotchi.json` must be deleted before any `packer build` run — Packer will attempt to build both templates if both are present.
+- `packer validate` requires `-var pwn_version=<string>` since the variable has no default. This is expected and correct.
+
+### 6.5 Phase 2: Claude Code Session Plan
 
 **Session goal:** Upgrade the cleaned codebase to Bookworm 32-bit, Python 3.11, Flask 3.x, and pyproject.toml. Break into sub-sessions.
 
 **Recommended sub-sessions:**
 
 1. **Sub-session A — Base image and pyproject.toml:** *"Update the Ansible base image URL to Raspberry Pi OS Bookworm Lite armhf. Then migrate `setup.py` to `pyproject.toml` using `hatchling`. Preserve all entry points and data file installs. Do not touch `requirements.in` yet."*
-2. **Sub-session B — Flask upgrade:** *"Upgrade Flask and its dependencies as specified in Section 6.4.1 of `DESIGN.md`. Audit `webcfg` plugin and any other plugin that uses `render_template_string` or `request.form` for Flask 3.x compatibility. Show me every change to plugin files before applying."*
+2. **Sub-session B — Flask upgrade:** *"Upgrade Flask and its dependencies as specified in Section 7.4.1 of `DESIGN.md`. Audit `webcfg` plugin and any other plugin that uses `render_template_string` or `request.form` for Flask 3.x compatibility. Show me every change to plugin files before applying."*
 3. **Sub-session C — Python 3.11 compat:** *"Search the codebase for `datetime.utcnow()`, `pkg_resources` usage, and `collections` imports (not `collections.abc`). Fix each as specified in Section 6.2. Run `python -m py_compile` on every `.py` file under `pwnagotchi/`."*
 4. **Sub-session D — pip-compile:** *"Update `requirements.in` as specified: remove pycryptodome (already commented), update Flask stack versions. Then run `pip-compile --resolver=backtracking --strip-extras --prefer-binary` against Python 3.11 and commit the output as `requirements.txt`."*
-5. **Sub-session E — AI guard and tests:** *"Harden the AI fallback guard as described in Section 6.4.2. Then write `tests/test_config.py`, `tests/test_bettercap.py`, `tests/test_plugins.py`, and `tests/test_ai_guard.py` covering the 17 tests specified in Section 6.5."*
+5. **Sub-session E — AI guard and tests:** *"Harden the AI fallback guard as described in Section 7.4.2. Then write `tests/test_config.py`, `tests/test_bettercap.py`, `tests/test_plugins.py`, and `tests/test_ai_guard.py` covering the 17 tests specified in Section 6.5."*
 
 **What to watch for:**
 - Flask 3.x removed `flask.escape()` (use `markupsafe.escape()`) and `flask.Markup` (use `markupsafe.Markup`). Most likely impact point is the webcfg plugin.
 - pyproject.toml with hatchling requires explicit declaration of data files. Map each `install_file()` call to `[tool.hatch.build.targets.wheel.shared-data]`.
 - pip-compile must be run on a Bookworm 32-bit environment (QEMU or Docker). Do not run on a dev workstation.
 
-### 5.5 Phase 3: Claude Code Session Plan
+### 6.6 Phase 3: Claude Code Session Plan
 
 **Session goal:** Migrate to 64-bit OS, replace AI stack with SB3/PyTorch, update build pipeline for aarch64.
 
 **Recommended sub-sessions:**
 
 1. **Sub-session A — Build pipeline:** *"Update the Ansible base image to Bookworm 64-bit (aarch64). Change `GOARCH` to `arm64` for the bettercap build. Update nexmon to use `ARCH=arm64` and 64-bit kernel headers. Do not touch Python code yet."*
-2. **Sub-session B — gymnasium env adapter + tests:** *"Rewrite `pwnagotchi/ai/` gym.Env wrapper to the gymnasium 0.29 API. The observation space and action space dimensions are unchanged. Show me the method signature changes (step, reset) before rewriting. Then write `tests/test_gym_env.py` covering the 7 tests specified in Section 7.2.3, including the env_checker test."*
-3. **Sub-session C — SB3 integration + tests:** *"Update `ai/__init__.py` to import from `stable_baselines3` instead of `stable_baselines`. Update `requirements.in`: remove `tensorflow`, `stable-baselines`, `keras-*`, `tensorboard`, `gym`; add `torch>=2.1`, `stable-baselines3>=2.0`, `gymnasium>=0.29`. Then write `tests/test_sb3_integration.py` covering the 3 tests in Section 7.2.4."*
+2. **Sub-session B — gymnasium env adapter + tests:** *"Rewrite `pwnagotchi/ai/` gym.Env wrapper to the gymnasium 0.29 API. The observation space and action space dimensions are unchanged. Show me the method signature changes (step, reset) before rewriting. Then write `tests/test_gym_env.py` covering the 7 tests specified in Section 8.2.3, including the env_checker test."*
+3. **Sub-session C — SB3 integration + tests:** *"Update `ai/__init__.py` to import from `stable_baselines3` instead of `stable_baselines`. Update `requirements.in`: remove `tensorflow`, `stable-baselines`, `keras-*`, `tensorboard`, `gym`; add `torch>=2.1`, `stable-baselines3>=2.0`, `gymnasium>=0.29`. Then write `tests/test_sb3_integration.py` covering the 3 tests in Section 8.2.4."*
 4. **Sub-session D — pip-compile aarch64:** *"Run pip-compile against Python 3.11 aarch64 and commit the output as `requirements-aarch64.txt`."*
 
 **What to watch for:**
@@ -472,7 +592,7 @@ All phases are intended to be executed using Claude Code. This section captures 
 - The gymnasium `step()` method returns a 5-tuple. Grep for all `env.step(` call sites and update any that unpack a 4-tuple.
 - The AI sub-session is the highest-risk session. After applying changes, run `tests/test_gym_env.py` before declaring the session complete.
 
-### 5.6 Cross-Phase Guidance
+### 7.6 Cross-Phase Guidance
 
 **The checklist is the contract.** The Phase 1 acceptance checklist is in `CLAUDE.md`. For Phases 1.5, 2, and 3, derive equivalent checklists from the deliverables tables before those sessions begin. Ask Claude Code to work through the checklist at the end of every session.
 
@@ -480,17 +600,17 @@ All phases are intended to be executed using Claude Code. This section captures 
 
 ---
 
-## 6. Phase 2 — 32-bit Stabilisation
+## 7. Phase 2 — 32-bit Stabilisation
 
 **Objective:** Bring the Phase 1–cleaned codebase to a clean, reproducible, well-tested state on the 32-bit armhf target (RPi Zero 2 W, Raspberry Pi OS Bookworm).
 
 The codebase entering this phase is meaningfully smaller: no `grid.py`, no `identity.py`, no `mesh/`, no `pwngrid-peer.service`, no `pycryptodome`.
 
-### 6.1 Base Image: Bookworm 32-bit
+### 8.1 Base Image: Bookworm 32-bit
 
 Update the builder base image URL to Raspberry Pi OS **Bookworm Lite 32-bit (armhf)**. Bookworm is the current stable Raspberry Pi OS release and ships Python 3.11 as the default interpreter. This also sets up a clean OS baseline for Phase 3 (which uses the 64-bit Bookworm variant).
 
-### 6.2 Python Runtime: 3.7 → 3.11
+### 8.2 Python Runtime: 3.7 → 3.11
 
 The pip-compile header in the current `requirements.txt` says "python 3.7". Re-running pip-compile against Bookworm Python 3.11 is required. Breaking changes to audit and fix:
 
@@ -502,7 +622,7 @@ The pip-compile header in the current `requirements.txt` says "python 3.7". Re-r
 | `collections.abc` move (3.10) | Possible in plugins or transitive deps | 2to3 codemod + manual review |
 | `asyncio.coroutine` removed (3.11) | Not directly used; check transitive deps | Dep audit during pip-compile |
 
-### 6.3 Migrate setup.py to pyproject.toml
+### 8.3 Migrate setup.py to pyproject.toml
 
 Replace `setup.py` (which uses `distutils.util.strtobool`) with `pyproject.toml` using the `hatchling` build backend.
 
@@ -511,7 +631,7 @@ Replace `setup.py` (which uses `distutils.util.strtobool`) with `pyproject.toml`
 - **Add:** `requires-python = ">=3.9"`; optional dep groups `[ai]` and `[display]`
 - **Keep:** `requirements.in` / `requirements.txt` as the lock files for the image build. pyproject.toml dependency metadata is kept deliberately loose; the lock files control actual installed versions.
 
-### 6.4 Dependency Cleanup
+### 8.4 Dependency Cleanup
 
 #### 7.4.1 Flask 1.x → 3.x
 
@@ -546,11 +666,11 @@ Re-run pip-compile against Bookworm Python 3.11. The `--prefer-binary` flag is a
 
 > pip-compile must be run inside a Bookworm 32-bit QEMU or Docker environment to produce correct armhf/piwheels-compatible output. Do not run on an x86 dev machine.
 
-### 6.5 Test Suite
+### 7.5 Test Suite
 
 Add a `tests/` directory at the repo root with a `pytest` harness. All tests must be runnable without hardware (no physical display, no bettercap process, no WiFi interface). All hardware interactions are mocked.
 
-#### 6.5.1 Config Tests (`tests/test_config.py`)
+#### 7.5.1 Config Tests (`tests/test_config.py`)
 
 Tests for `pwnagotchi/fs/__init__.py` and the config merge logic.
 
@@ -561,7 +681,7 @@ Tests for `pwnagotchi/fs/__init__.py` and the config merge logic.
 5. `test_missing_required_key_raises` — accessing a key with no default raises expected exception, not silent `KeyError`
 6. `test_no_grid_keys_in_defaults` — assert `main.plugins.grid` does not appear anywhere in `defaults.toml` *(Phase 1 regression guard)*
 
-#### 6.5.2 bettercap Client Tests (`tests/test_bettercap.py`)
+#### 7.5.2 bettercap Client Tests (`tests/test_bettercap.py`)
 
 Using `responses` library for HTTP mocking and `pytest-asyncio` for websocket mocking.
 
@@ -572,7 +692,7 @@ Using `responses` library for HTTP mocking and `pytest-asyncio` for websocket mo
 5. `test_websocket_reconnect_on_error` — mock websocket error event; assert reconnection is attempted
 6. `test_no_grid_module_imported` — import `pwnagotchi.bettercap`; assert `'pwnagotchi.grid'` not in `sys.modules` *(Phase 1 regression guard)*
 
-#### 6.5.3 Plugin Loader Tests (`tests/test_plugins.py`)
+#### 7.5.3 Plugin Loader Tests (`tests/test_plugins.py`)
 
 1. `test_load_valid_plugin` — minimal in-memory plugin with `__author__`, `__version__`, `on_loaded`; loads without error
 2. `test_plugin_on_loaded_called` — `on_loaded` fires exactly once after load
@@ -581,22 +701,22 @@ Using `responses` library for HTTP mocking and `pytest-asyncio` for websocket mo
 5. `test_unknown_callback_is_ignored` — dispatch unknown callback name; no exception
 6. `test_on_peer_detected_not_registered` — `on_peer_detected` not in loader's known callback registry *(Phase 1 regression guard)*
 
-#### 6.5.4 AI Guard Tests (`tests/test_ai_guard.py`)
+#### 7.5.4 AI Guard Tests (`tests/test_ai_guard.py`)
 
 1. `test_ai_available_false_when_tf_missing` — patch `sys.modules` so TF import raises `ImportError`; assert `pwnagotchi.ai.AI_AVAILABLE is False`
 2. `test_ai_warning_logged_when_tf_missing` — same setup; assert `WARNING` with import error message is emitted
 3. `test_agent_starts_in_manu_when_ai_unavailable` — construct agent with `AI_AVAILABLE = False` and mock config; assert initial mode is `MANU`
 4. `test_ai_available_true_when_tf_present` — patch TF as importable stub; assert `AI_AVAILABLE is True` *(auto-skip if TF not installed)*
 
-### 6.6 Linting and Formatting
+### 7.6 Linting and Formatting
 
 Add `ruff` as the single linter and formatter. Commit `ruff.toml` and `.pre-commit-config.yaml`. Apply formatting as a **separate cosmetic commit** from any functional change so blame history stays readable.
 
-### 6.7 USB Networking
+### 7.7 USB Networking
 
 Replace `/etc/network/interfaces.d/usb0` with a NetworkManager `.nmconnection` profile for the USB gadget interface. Bookworm defaults to NetworkManager; the legacy `ifupdown` approach conflicts with it.
 
-### 6.8 Phase 2 Deliverables
+### 7.8 Phase 2 Deliverables
 
 | Deliverable | Description | Priority |
 |---|---|---|
@@ -614,13 +734,13 @@ Replace `/etc/network/interfaces.d/usb0` with a NetworkManager `.nmconnection` p
 
 ---
 
-## 7. Phase 3 — 64-bit Migration
+## 8. Phase 3 — 64-bit Migration
 
 **Objective:** Migrate the Phase 2–stabilised codebase to a 64-bit (aarch64) target on the same RPi Zero 2 W hardware, running Raspberry Pi OS Bookworm 64-bit. Replace TF1.x/SB2 with PyTorch/SB3.
 
 The `requirements.in` comment is the explicit statement: *"Upgrading to stable-baselines3 is currently impossible because it depends on PyTorch which requires a 64-bit processor."* Phase 3 resolves this.
 
-### 7.1 Architecture Comparison
+### 8.1 Architecture Comparison
 
 | Attribute | Phase 2 (32-bit) | Phase 3 (64-bit) |
 |---|---|---|
@@ -636,15 +756,15 @@ The `requirements.in` comment is the explicit statement: *"Upgrading to stable-b
 | bettercap | Source-built (Go 1.22.4) | Source-built (Go 1.22.4+, GOARCH=arm64) |
 | nexmon | Source-built (arm) | Source-built (arm64 kernel headers) |
 
-### 7.2 AI Stack Migration
+### 8.2 AI Stack Migration
 
-#### 7.2.1 New Stack
+#### 8.2.1 New Stack
 
 Remove from `requirements.in`: `tensorflow`, `stable-baselines`, `keras-applications`, `keras-preprocessing`, `tensorboard`, `gym`.
 
 Add: `torch >= 2.1`, `stable-baselines3 >= 2.0`, `gymnasium >= 0.29`.
 
-#### 7.2.2 gymnasium API Differences
+#### 8.2.2 gymnasium API Differences
 
 | Method | gym 0.14–0.21 (current) | gymnasium 0.29+ (Phase 3) |
 |---|---|---|
@@ -654,7 +774,7 @@ Add: `torch >= 2.1`, `stable-baselines3 >= 2.0`, `gymnasium >= 0.29`.
 
 Rewrite `pwnagotchi/ai/` gym.Env wrapper to the gymnasium API. The observation space and action space dimensions are **unchanged**; only method signatures change. Grep for all `env.step(` call sites and update any that unpack a 4-tuple.
 
-#### 7.2.3 gymnasium Env Tests (`tests/test_gym_env.py`)
+#### 8.2.3 gymnasium Env Tests (`tests/test_gym_env.py`)
 
 Using mock bettercap state dict; no hardware required.
 
@@ -666,7 +786,7 @@ Using mock bettercap state dict; no hardware required.
 6. `test_valid_actions_accepted` — all values in `action_space` accepted by `env.step()` without raising
 7. `test_gymnasium_env_checker` — `gymnasium.utils.env_checker.check_env(env)` raises no warnings or errors
 
-#### 7.2.4 SB3 Integration Tests (`tests/test_sb3_integration.py`)
+#### 8.2.4 SB3 Integration Tests (`tests/test_sb3_integration.py`)
 
 Mark all with `@pytest.mark.slow`. Excluded from fast CI run; run in nightly or pre-release CI.
 
@@ -674,18 +794,18 @@ Mark all with `@pytest.mark.slow`. Excluded from fast CI run; run in nightly or 
 2. `test_a2c_learn_one_step` — `model.learn(total_timesteps=1)` completes without error
 3. `test_model_save_load_roundtrip` — save to temp file; load back; loaded model's policy network has same architecture
 
-#### 7.2.5 Model File Incompatibility
+#### 8.2.5 Model File Incompatibility
 
 TF1.x stable-baselines 2.x model files (`.pkl`) cannot be loaded by stable-baselines3. **Accept the break and re-train from scratch** on Phase 3 images. Do not write migration code. Document clearly in CHANGELOG.md.
 
-### 7.3 Build Pipeline Changes
+### 8.3 Build Pipeline Changes
 
 - **bettercap:** Change `GOARCH=arm` to `GOARCH=arm64` in the Ansible Go build task. No source changes.
 - **nexmon:** Set `ARCH=arm64` and install 64-bit kernel headers. Same chip firmware patches (BCM43436b0, BCM43430a1, BCM43455c0); only the build target changes.
 - **pwngrid:** Already removed in Phase 1. No action needed.
 - **requirements:** Run pip-compile against aarch64 Python 3.11. Commit as `requirements-aarch64.txt`.
 
-### 7.4 Phase 3 Deliverables
+### 8.4 Phase 3 Deliverables
 
 | Deliverable | Description | Priority |
 |---|---|---|
@@ -703,7 +823,7 @@ TF1.x stable-baselines 2.x model files (`.pkl`) cannot be loaded by stable-basel
 
 ---
 
-## 8. What is Explicitly Out of Scope
+## 9. What is Explicitly Out of Scope
 
 | Out of Scope Item | Rationale |
 |---|---|
@@ -720,7 +840,7 @@ TF1.x stable-baselines 2.x model files (`.pkl`) cannot be loaded by stable-basel
 
 ---
 
-## 9. Risk Register
+## 10. Risk Register
 
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
@@ -729,14 +849,15 @@ TF1.x stable-baselines 2.x model files (`.pkl`) cannot be loaded by stable-basel
 | Phase 1.5 `automata.py` grateful removal breaks an unexpected caller | Low | Low | The grep in Section 4.3 Step 1 must be run and reviewed before any deletion; `python -m py_compile` on automata.py is the acceptance gate |
 | Phase 1.5 `make langs` fails in dev/CI environment | Medium | Low | `language.sh update` can be run without make; the `.po` file edits are the meaningful output; `make langs` compiles to `.mo` and can be deferred to the builder environment |
 | agent.py cleanup introduces a regression in state machine behaviour | Medium | Medium | Phase 1 tests catch import-level issues; Phase 2 pytest baseline catches regressions going forward |
-| Flask 3.x upgrade breaks webcfg plugin or third-party plugins using Flask internals | Medium | Medium | Audit webcfg and all default plugins against Flask 3.x before tagging Phase 2 stable |
+| Phase 1.6 `packer validate` fails due to missing plugin or packer version mismatch | Low | Low | `packer init .` must run before validate; pin `required_plugins` to `~> 0.2`; use GitHub Actions build as the acceptance gate if local packer unavailable |
+| Phase 1.6 image build fails after HCL migration despite JSON working | Low | Medium | The HCL template is functionally identical to the JSON; most likely cause is the `pwnagotchi.json` file not being deleted before the build (Packer attempts to build both) | | Medium | Medium | Audit webcfg and all default plugins against Flask 3.x before tagging Phase 2 stable |
 | nexmon arm64 build fails on new Bookworm kernel version | Medium | High | Pin kernel version in builder; track nexmon issue tracker; fork already has nexmon source-build experience |
 | PyTorch memory pressure on 512 MB Zero 2 W | Low | High | Community forks confirm PyTorch works on Zero 2 W; monitor swap usage; SB3 A2C is relatively lightweight |
 | pip-compile on Bookworm 3.11 produces dep set incompatible with piwheels | Medium | Medium | Run pip-compile inside a Bookworm 32-bit QEMU environment; `--prefer-binary` already in requirements.in |
 
 ---
 
-## 10. Implementation Sequence
+## 11. Implementation Sequence
 
 ### Phase 1: pwngrid & Peer-Advertising Removal ✅ Complete (PR #139)
 
@@ -754,6 +875,23 @@ TF1.x stable-baselines 2.x model files (`.pkl`) cannot be loaded by stable-basel
 3. Sub-task C: In `view.py`, replace `self._agent.in_good_mood()` with `False`; delete `set_grateful`, `in_good_mood`, `_has_support_network_for` from `automata.py`; remove unreachable branches from mood setters; remove unused `factor` locals from `set_bored`/`set_sad`; keep `bond_encounters_factor` in defaults.toml → commit
 4. Sub-task D: Add 3 regression tests; confirm 11 tests pass → commit
 5. Update CHANGELOG.md → commit. Tag **v1.9.1**.
+
+### Phase 1.6: Packer HCL2 Migration (target: v1.9.2)
+
+1. Replace `builder/pwnagotchi.json` with `builder/pwnagotchi.pkr.hcl`.
+2. Update `Makefile`: change dependency reference from `pwnagotchi.json` to `pwnagotchi.pkr.hcl`; replace `packer plugins install` + `packer build ... pwnagotchi.json` with `packer init . && packer build ... .`.
+3. Delete `builder/pwnagotchi.json`.
+4. Trigger a full image build. Verify it completes successfully.
+5. Update `CHANGELOG.md`. Tag **v1.9.2**.
+
+### Phase 1.6: Packer HCL2 Migration (target: v1.9.2)
+
+1. Add `builder/pwnagotchi.pkr.hcl`.
+2. Update `Makefile`: dependency reference `pwnagotchi.json` → `pwnagotchi.pkr.hcl`; replace `packer plugins install` + `packer build ... pwnagotchi.json` with `packer init . && packer build ... .`
+3. Delete `builder/pwnagotchi.json`.
+4. Run `packer validate -var pwn_version=test .` from `builder/` to confirm template parses.
+5. Trigger full image build via GitHub Actions. Verify `.img` produced with no errors.
+6. Update `CHANGELOG.md`. Tag **v1.9.2**.
 
 ### Phase 2: 32-bit Stabilisation
 
@@ -780,7 +918,7 @@ TF1.x stable-baselines 2.x model files (`.pkl`) cannot be loaded by stable-basel
 
 ---
 
-## 11. Appendix
+## 12. Appendix
 
 ### A. Phase 1 & 1.5 Acceptance Checklists
 
