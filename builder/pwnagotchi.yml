@@ -343,7 +343,6 @@
       pip-compile \
         --resolver=backtracking \
         --strip-extras \
-        --prefer-binary \
         --extra-index-url "https://www.piwheels.org/simple" \
         --output-file /usr/local/src/pwnagotchi/requirements.txt \
         /usr/local/src/pwnagotchi/requirements.in
