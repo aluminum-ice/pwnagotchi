@@ -402,19 +402,13 @@
     shell: |
       export GOPATH=$HOME/go
       export PATH=/usr/local/go/bin:$PATH:$GOPATH/bin
-      # GOTOOLCHAIN=local prevents Go 1.22 from trying to download Go 1.25
-      # when it sees the 'go 1.25.0' toolchain directive in bettercap's go.mod.
-      # Without this, Go attempts to self-upgrade over the slow QEMU network
-      # connection and times out before any bettercap dependencies are fetched.
       export GOTOOLCHAIN=local
-      # Increase HTTP timeout for module downloads in the slow QEMU environment.
-      export GOFLAGS="-mod=mod"
-      export GONOSUMCHECK="*"
+      export GONOSUMCHECK=*
+      export GOFLAGS=-mod=mod
       mkdir -p $GOPATH/src/github.com/bettercap
       cd $GOPATH/src/github.com/bettercap
       git clone https://github.com/bettercap/bettercap.git
       cd bettercap
-      # Pre-fetch all dependencies before building to surface network errors early
       go mod download
       make build
       make install
