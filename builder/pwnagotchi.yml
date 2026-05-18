@@ -420,8 +420,6 @@
       make install
     args:
       executable: /bin/bash
-    environment:
-      GOTOOLCHAIN: local
     register: bettercap
     when: createduser.changed
 
